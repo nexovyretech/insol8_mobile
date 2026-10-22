@@ -1,0 +1,12 @@
+version = 0.1
+
+[default.global.parameters]
+stack_name = "insol8-mobile-dist"
+
+[default.deploy.parameters]
+region = "ap-southeast-1"          # change to the region you use for InSOL8
+capabilities = "CAPABILITY_IAM CAPABILITY_NAMED_IAM"   # NAMED_IAM because the upload role has a fixed name
+confirm_changeset = true
+resolve_s3 = true
+# GitHubSubject has no default on purpose: sam deploy --guided will ask for it.
+tags = "project=insol8 component=mobile-distribution"

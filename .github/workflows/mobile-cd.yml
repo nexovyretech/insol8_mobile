@@ -1,14 +1,20 @@
-name: Mobile CD (UAT beta)
+name: Mobile CD (UAT beta on AWS)
 
-# Beta builds only, sent to the UAT tester group via Firebase App Distribution.
-# No app-store release at prototype stage.
+# Beta builds only. The APK is uploaded to a private S3 bucket; testers sign in to the
+# Cognito-protected portal to download it. No app-store release at prototype stage.
 # Trigger: push a tag such as  v0.4.0   (or run manually from the Actions tab).
 #
-# Variables / secrets (Settings -> Environments -> production):
-#   vars.API_BASE_URL, vars.FIREBASE_APP_ID, vars.FIREBASE_TESTER_GROUP
-#   secrets.FIREBASE_SERVICE_ACCOUNT_JSON
-# If your repo is private on a plan without Environments, delete the
-# `environment: production` line and store these as repository variables/secrets instead.
+# Variables (Settings -> Environments -> production -> Variables):
+#   AWS_ROLE_ARN     stack output UploadRoleArn
+#   AWS_REGION       region you deployed the stack to
+#   BUILDS_BUCKET    stack output BuildsBucketName
+#   API_BASE_URL     the backend URL baked into the app
+#   PORTAL_URL       (optional) stack output PortalUrl, shown in the run summary
+# There are no secrets: AWS access uses GitHub's OIDC token, not stored keys.
+#
+# If your repo is private on a plan without Environments, delete the `environment:` line
+# and store the variables as repository variables. Then deploy the stack with
+# GitHubSubject = repo:<org>/<repo>:ref:refs/tags/v*
 
 on:
   push:
@@ -22,10 +28,11 @@ on:
 
 permissions:
   contents: read
+  id-token: write   # lets the job request a short-lived AWS credential
 
 jobs:
   distribute:
-    name: Build APK + distribute to testers
+    name: Build APK + upload to AWS
     runs-on: ubuntu-latest
     environment: production
     steps:
@@ -53,7 +60,7 @@ jobs:
           --dart-define=API_BASE_URL="$API_BASE_URL"
           --build-number=${{ github.run_number }}
 
-      # Kept as a workflow artifact so a bad build can be replaced by re-sending an older one.
+      # Kept as a workflow artifact too, so an older build can always be re-uploaded.
       - uses: actions/upload-artifact@v4
         with:
           name: insol8-app-${{ github.run_number }}
@@ -61,10 +68,33 @@ jobs:
           retention-days: 90
           if-no-files-found: error
 
-      - uses: wzieba/Firebase-Distribution-Github-Action@v1
+      - uses: aws-actions/configure-aws-credentials@v4
         with:
-          appId: ${{ vars.FIREBASE_APP_ID }}
-          serviceCredentialsFileContent: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_JSON }}
-          groups: ${{ vars.FIREBASE_TESTER_GROUP }}
-          file: build/app/outputs/flutter-apk/app-release.apk
-          releaseNotes: ${{ inputs.release_notes || format('Build {0} ({1})', github.run_number, github.sha) }}
+          role-to-assume: ${{ vars.AWS_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION }}
+
+      - name: Upload APK to S3
+        env:
+          BUCKET: ${{ vars.BUILDS_BUCKET }}
+          PORTAL_URL: ${{ vars.PORTAL_URL }}
+          RUN: ${{ github.run_number }}
+          VERSION: ${{ github.ref_name }}
+          COMMIT: ${{ github.sha }}
+          NOTES_RAW: ${{ inputs.release_notes || format('Build {0}', github.run_number) }}
+        run: |
+          # S3 metadata must be plain ASCII on one line, so strip everything else.
+          NOTES="$(printf '%s' "$NOTES_RAW" | LC_ALL=C tr -cd '[:print:]' | cut -c1-200)"
+          METADATA="$(jq -nc --arg version "$VERSION" --arg run "$RUN" --arg commit "$COMMIT" --arg notes "$NOTES" \
+            '{version:$version, run:$run, commit:$commit, notes:$notes}')"
+
+          aws s3 cp build/app/outputs/flutter-apk/app-release.apk \
+            "s3://$BUCKET/builds/$RUN/insol8-$RUN.apk" \
+            --content-type application/vnd.android.package-archive \
+            --metadata "$METADATA"
+
+          {
+            echo "### Beta build $RUN uploaded"
+            echo "- Version/ref: \`$VERSION\`"
+            echo "- Commit: \`$COMMIT\`"
+            if [ -n "$PORTAL_URL" ]; then echo "- Testers download it at: $PORTAL_URL"; fi
+          } >> "$GITHUB_STEP_SUMMARY"
