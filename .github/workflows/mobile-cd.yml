@@ -1,0 +1,70 @@
+name: Mobile CD (UAT beta)
+
+# Beta builds only, sent to the UAT tester group via Firebase App Distribution.
+# No app-store release at prototype stage.
+# Trigger: push a tag such as  v0.4.0   (or run manually from the Actions tab).
+#
+# Variables / secrets (Settings -> Environments -> production):
+#   vars.API_BASE_URL, vars.FIREBASE_APP_ID, vars.FIREBASE_TESTER_GROUP
+#   secrets.FIREBASE_SERVICE_ACCOUNT_JSON
+# If your repo is private on a plan without Environments, delete the
+# `environment: production` line and store these as repository variables/secrets instead.
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      release_notes:
+        description: What testers should look at
+        required: false
+        default: Manual build
+
+permissions:
+  contents: read
+
+jobs:
+  distribute:
+    name: Build APK + distribute to testers
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - run: flutter pub get
+      - run: flutter analyze
+      - run: flutter test
+
+      - name: Build release APK
+        env:
+          API_BASE_URL: ${{ vars.API_BASE_URL }}
+        run: >
+          flutter build apk --release
+          --dart-define=API_BASE_URL="$API_BASE_URL"
+          --build-number=${{ github.run_number }}
+
+      # Kept as a workflow artifact so a bad build can be replaced by re-sending an older one.
+      - uses: actions/upload-artifact@v4
+        with:
+          name: insol8-app-${{ github.run_number }}
+          path: build/app/outputs/flutter-apk/app-release.apk
+          retention-days: 90
+          if-no-files-found: error
+
+      - uses: wzieba/Firebase-Distribution-Github-Action@v1
+        with:
+          appId: ${{ vars.FIREBASE_APP_ID }}
+          serviceCredentialsFileContent: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_JSON }}
+          groups: ${{ vars.FIREBASE_TESTER_GROUP }}
+          file: build/app/outputs/flutter-apk/app-release.apk
+          releaseNotes: ${{ inputs.release_notes || format('Build {0} ({1})', github.run_number, github.sha) }}
