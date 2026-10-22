@@ -1,0 +1,274 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: >
+  InSOL8 mobile beta distribution. A private S3 bucket holds the APKs, a Cognito user pool
+  decides who may download them, a small Lambda behind an API with a JWT authorizer hands out
+  short-lived download links, and a static portal on CloudFront is the page testers sign in to.
+
+Parameters:
+  GitHubSubject:
+    Type: String
+    Description: >
+      Which GitHub workflow runs may assume the upload role (the OIDC "sub" claim).
+      Default matches the mobile-cd.yml job that uses the 'production' environment.
+      Example: repo:my-org/insol8-mobile:environment:production
+      If you do NOT use a GitHub environment, use repo:my-org/insol8-mobile:ref:refs/tags/v*
+  ExistingOidcProviderArn:
+    Type: String
+    Default: ''
+    Description: >
+      Leave empty to create the GitHub OIDC provider. If your AWS account already has one
+      (only one is allowed per account), paste its ARN here.
+  BuildRetentionDays:
+    Type: Number
+    Default: 90
+    MinValue: 7
+    Description: APKs older than this are deleted automatically.
+
+Conditions:
+  CreateOidcProvider: !Equals [!Ref ExistingOidcProviderArn, '']
+
+Resources:
+  # ---------------------------------------------------------------- storage
+  BuildsBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+      LifecycleConfiguration:
+        Rules:
+          - Id: expire-old-builds
+            Status: Enabled
+            Prefix: builds/
+            ExpirationInDays: !Ref BuildRetentionDays
+
+  PortalBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+
+  # ---------------------------------------------------------------- portal hosting (HTTPS via CloudFront)
+  PortalOac:
+    Type: AWS::CloudFront::OriginAccessControl
+    Properties:
+      OriginAccessControlConfig:
+        Name: !Sub ${AWS::StackName}-portal-oac
+        OriginAccessControlOriginType: s3
+        SigningBehavior: always
+        SigningProtocol: sigv4
+
+  PortalDistribution:
+    Type: AWS::CloudFront::Distribution
+    Properties:
+      DistributionConfig:
+        Enabled: true
+        Comment: InSOL8 mobile beta portal
+        DefaultRootObject: index.html
+        HttpVersion: http2
+        PriceClass: PriceClass_100
+        Origins:
+          - Id: portal
+            DomainName: !GetAtt PortalBucket.RegionalDomainName
+            OriginAccessControlId: !GetAtt PortalOac.Id
+            S3OriginConfig:
+              OriginAccessIdentity: ''
+        DefaultCacheBehavior:
+          TargetOriginId: portal
+          ViewerProtocolPolicy: redirect-to-https
+          Compress: true
+          AllowedMethods: [GET, HEAD]
+          # Managed policies: CachingDisabled (the site is tiny; updates appear instantly)
+          # and SecurityHeadersPolicy (HSTS, X-Content-Type-Options, X-Frame-Options, ...)
+          CachePolicyId: 4135ea2d-6df8-44a3-9df3-4b5a84be39ad
+          ResponseHeadersPolicyId: 67f7725c-6f97-4210-82d7-5512b698a8ac
+
+  PortalBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref PortalBucket
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Sid: AllowCloudFrontRead
+            Effect: Allow
+            Principal:
+              Service: cloudfront.amazonaws.com
+            Action: s3:GetObject
+            Resource: !Sub ${PortalBucket.Arn}/*
+            Condition:
+              StringEquals:
+                AWS:SourceArn: !Sub arn:${AWS::Partition}:cloudfront::${AWS::AccountId}:distribution/${PortalDistribution}
+
+  # ---------------------------------------------------------------- Cognito (who may download)
+  UserPool:
+    Type: AWS::Cognito::UserPool
+    Properties:
+      UserPoolName: !Sub ${AWS::StackName}-testers
+      UsernameAttributes: [email]
+      AutoVerifiedAttributes: [email]
+      # Testers are invited by an admin. Nobody can sign themselves up.
+      AdminCreateUserConfig:
+        AllowAdminCreateUserOnly: true
+        InviteMessageTemplate:
+          EmailSubject: InSOL8 beta access
+          EmailMessage: !Sub >-
+            You have been invited to test the InSOL8 mobile app.
+            Sign in at https://${PortalDistribution.DomainName}/ with the email address
+            {username} and the temporary password {####}. You will be asked to choose a new password.
+      Policies:
+        PasswordPolicy:
+          MinimumLength: 12
+          RequireLowercase: true
+          RequireUppercase: true
+          RequireNumbers: true
+          RequireSymbols: false
+          TemporaryPasswordValidityDays: 7
+      AccountRecoverySetting:
+        RecoveryMechanisms:
+          - Name: verified_email
+            Priority: 1
+
+  UserPoolDomain:
+    Type: AWS::Cognito::UserPoolDomain
+    Properties:
+      UserPoolId: !Ref UserPool
+      Domain: !Sub ${AWS::StackName}-${AWS::AccountId}
+      ManagedLoginVersion: 1   # classic hosted UI: works with no extra branding setup
+
+  UserPoolClient:
+    Type: AWS::Cognito::UserPoolClient
+    Properties:
+      UserPoolId: !Ref UserPool
+      ClientName: beta-portal
+      GenerateSecret: false          # browser app: no client secret, PKCE protects the code flow
+      AllowedOAuthFlowsUserPoolClient: true
+      AllowedOAuthFlows: [code]
+      AllowedOAuthScopes: [openid, email]
+      SupportedIdentityProviders: [COGNITO]
+      CallbackURLs:
+        - !Sub https://${PortalDistribution.DomainName}/
+      LogoutURLs:
+        - !Sub https://${PortalDistribution.DomainName}/
+      PreventUserExistenceErrors: ENABLED
+      EnableTokenRevocation: true
+      IdTokenValidity: 60
+      AccessTokenValidity: 60
+      RefreshTokenValidity: 1
+      TokenValidityUnits:
+        IdToken: minutes
+        AccessToken: minutes
+        RefreshToken: days
+
+  # ---------------------------------------------------------------- API (JWT-protected)
+  BetaApi:
+    Type: AWS::Serverless::HttpApi
+    Properties:
+      CorsConfiguration:
+        AllowOrigins:
+          - !Sub https://${PortalDistribution.DomainName}
+        AllowMethods: [GET]
+        AllowHeaders: [authorization]
+        MaxAge: 600
+      Auth:
+        DefaultAuthorizer: CognitoJwt
+        Authorizers:
+          CognitoJwt:
+            IdentitySource: $request.header.Authorization
+            JwtConfiguration:
+              issuer: !Sub https://cognito-idp.${AWS::Region}.amazonaws.com/${UserPool}
+              audience:
+                - !Ref UserPoolClient
+
+  ListBuildsFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: lambda/builds/
+      Handler: index.handler
+      Runtime: nodejs22.x
+      Timeout: 15
+      MemorySize: 256
+      Environment:
+        Variables:
+          BUCKET: !Ref BuildsBucket
+      Policies:
+        - S3ReadPolicy:
+            BucketName: !Ref BuildsBucket
+      Events:
+        ListBuilds:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref BetaApi
+            Path: /builds
+            Method: GET
+
+  # ---------------------------------------------------------------- GitHub Actions upload role
+  GitHubOidcProvider:
+    Type: AWS::IAM::OIDCProvider
+    Condition: CreateOidcProvider
+    Properties:
+      Url: https://token.actions.githubusercontent.com
+      ClientIdList: [sts.amazonaws.com]
+      ThumbprintList: [6938fd4d98bab03faadb97b34396831e3780aea1]
+
+  GitHubUploadRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub ${AWS::StackName}-gha-upload
+      MaxSessionDuration: 3600
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Federated: !If [CreateOidcProvider, !Ref GitHubOidcProvider, !Ref ExistingOidcProviderArn]
+            Action: sts:AssumeRoleWithWebIdentity
+            Condition:
+              StringEquals:
+                token.actions.githubusercontent.com:aud: sts.amazonaws.com
+              StringLike:
+                token.actions.githubusercontent.com:sub: !Ref GitHubSubject
+      Policies:
+        - PolicyName: upload-apks
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action: s3:PutObject
+                Resource: !Sub ${BuildsBucket.Arn}/builds/*
+
+Outputs:
+  PortalUrl:
+    Description: Give this link to testers
+    Value: !Sub https://${PortalDistribution.DomainName}/
+  PortalBucketName:
+    Value: !Ref PortalBucket
+  BuildsBucketName:
+    Description: GitHub variable BUILDS_BUCKET
+    Value: !Ref BuildsBucket
+  UserPoolId:
+    Description: Used when inviting testers
+    Value: !Ref UserPool
+  UserPoolClientId:
+    Value: !Ref UserPoolClient
+  CognitoDomainUrl:
+    Value: !Sub https://${UserPoolDomain}.auth.${AWS::Region}.amazoncognito.com
+  ApiUrl:
+    Value: !Sub https://${BetaApi}.execute-api.${AWS::Region}.amazonaws.com
+  UploadRoleArn:
+    Description: GitHub variable AWS_ROLE_ARN
+    Value: !GetAtt GitHubUploadRole.Arn

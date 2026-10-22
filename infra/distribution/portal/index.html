@@ -1,0 +1,173 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>InSOL8 beta builds</title>
+  <style>
+    :root { color-scheme: light dark; --bg:#fff; --fg:#1b1f23; --muted:#5b6670; --card:#f4f6f8; --line:#d7dde2; --accent:#0b6bcb; }
+    @media (prefers-color-scheme: dark) { :root { --bg:#14171a; --fg:#e8ecef; --muted:#9aa5ae; --card:#1d2227; --line:#2d353c; --accent:#5aa9ff; } }
+    body { margin:0; background:var(--bg); color:var(--fg); font:16px/1.5 system-ui, sans-serif; }
+    main { max-width:640px; margin:0 auto; padding:24px 16px 48px; }
+    h1 { font-size:1.4rem; margin:0 0 4px; }
+    .sub { color:var(--muted); margin:0 0 20px; }
+    .card { background:var(--card); border:1px solid var(--line); border-radius:10px; padding:14px 16px; margin:0 0 12px; }
+    .card h2 { font-size:1rem; margin:0 0 4px; }
+    .meta { color:var(--muted); font-size:.85rem; margin:0 0 8px; }
+    .notes { margin:0 0 10px; }
+    a.btn, button { display:inline-block; background:var(--accent); color:#fff; border:0; border-radius:8px; padding:8px 14px; font:inherit; text-decoration:none; cursor:pointer; }
+    button.link { background:none; color:var(--muted); text-decoration:underline; padding:0; }
+    .err { color:#c0392b; }
+    footer { margin-top:24px; }
+  </style>
+</head>
+<body>
+<main>
+  <h1>InSOL8 beta builds</h1>
+  <p class="sub" id="status">Checking sign-in...</p>
+  <div id="builds"></div>
+  <footer><button class="link" id="signout" hidden>Sign out</button></footer>
+</main>
+
+<script src="config.js"></script>
+<script>
+(() => {
+  const cfg = window.INSOL8_CONFIG;
+  const statusEl = document.getElementById('status');
+  const listEl = document.getElementById('builds');
+  const signOutBtn = document.getElementById('signout');
+  const redirectUri = location.origin + '/';
+
+  const store = {
+    get: (k) => { try { return sessionStorage.getItem(k); } catch { return null; } },
+    set: (k, v) => { try { sessionStorage.setItem(k, v); } catch { /* storage blocked */ } },
+    del: (k) => { try { sessionStorage.removeItem(k); } catch { /* storage blocked */ } },
+  };
+
+  const b64url = (bytes) =>
+    btoa(String.fromCharCode(...new Uint8Array(bytes))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+  const randomString = (n = 48) => b64url(crypto.getRandomValues(new Uint8Array(n)));
+
+  async function startLogin() {
+    const verifier = randomString(64);
+    const state = randomString(16);
+    const challenge = b64url(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(verifier)));
+    store.set('pkce_verifier', verifier);
+    store.set('oauth_state', state);
+    const params = new URLSearchParams({
+      response_type: 'code',
+      client_id: cfg.clientId,
+      redirect_uri: redirectUri,
+      scope: 'openid email',
+      state,
+      code_challenge: challenge,
+      code_challenge_method: 'S256',
+    });
+    location.assign(`${cfg.cognitoDomain}/oauth2/authorize?${params}`);
+  }
+
+  async function finishLogin(code, state) {
+    if (!state || state !== store.get('oauth_state')) throw new Error('Sign-in state mismatch. Please try again.');
+    const body = new URLSearchParams({
+      grant_type: 'authorization_code',
+      client_id: cfg.clientId,
+      code,
+      redirect_uri: redirectUri,
+      code_verifier: store.get('pkce_verifier') ?? '',
+    });
+    const res = await fetch(`${cfg.cognitoDomain}/oauth2/token`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/x-www-form-urlencoded' },
+      body,
+    });
+    if (!res.ok) throw new Error('Sign-in failed. Please try again.');
+    const tokens = await res.json();
+    store.set('id_token', tokens.id_token);
+    store.set('expires_at', String(Date.now() + (tokens.expires_in - 30) * 1000));
+    store.del('pkce_verifier');
+    store.del('oauth_state');
+  }
+
+  const signedIn = () => !!store.get('id_token') && Date.now() < Number(store.get('expires_at') ?? 0);
+
+  function signOut() {
+    store.del('id_token');
+    store.del('expires_at');
+    const params = new URLSearchParams({ client_id: cfg.clientId, logout_uri: redirectUri });
+    location.assign(`${cfg.cognitoDomain}/logout?${params}`);
+  }
+
+  const fmtSize = (b) => (b / 1048576).toFixed(1) + ' MB';
+
+  function render(data) {
+    listEl.replaceChildren();
+    if (!data.builds.length) {
+      statusEl.textContent = 'No builds have been uploaded yet.';
+      return;
+    }
+    statusEl.textContent = `Newest build first. Download links expire after ${Math.round(data.linkValidSeconds / 60)} minutes; reload the page for fresh ones. Android only.`;
+    for (const b of data.builds) {
+      const card = document.createElement('div');
+      card.className = 'card';
+
+      const title = document.createElement('h2');
+      title.textContent = b.version ? `${b.version} (build ${b.run})` : b.name;
+
+      const meta = document.createElement('p');
+      meta.className = 'meta';
+      meta.textContent = [new Date(b.uploaded).toLocaleString(), fmtSize(b.sizeBytes), b.commit && `commit ${b.commit.slice(0, 7)}`]
+        .filter(Boolean).join(' \u00b7 ');
+
+      card.append(title, meta);
+
+      if (b.notes) {
+        const notes = document.createElement('p');
+        notes.className = 'notes';
+        notes.textContent = b.notes;
+        card.append(notes);
+      }
+
+      const link = document.createElement('a');
+      link.className = 'btn';
+      link.href = b.url;
+      link.textContent = 'Download APK';
+      card.append(link);
+
+      listEl.append(card);
+    }
+  }
+
+  async function loadBuilds() {
+    statusEl.textContent = 'Loading builds...';
+    const res = await fetch(`${cfg.apiUrl}/builds`, { headers: { authorization: `Bearer ${store.get('id_token')}` } });
+    if (res.status === 401 || res.status === 403) {
+      store.del('id_token');
+      return startLogin();
+    }
+    if (!res.ok) throw new Error('Could not load builds. Try again later.');
+    signOutBtn.hidden = false;
+    render(await res.json());
+  }
+
+  async function main() {
+    try {
+      const q = new URLSearchParams(location.search);
+      if (q.get('error')) throw new Error(q.get('error_description') || 'Sign-in was cancelled.');
+      if (q.get('code')) {
+        await finishLogin(q.get('code'), q.get('state'));
+        history.replaceState(null, '', redirectUri);
+      }
+      if (!signedIn()) return startLogin();
+      await loadBuilds();
+    } catch (err) {
+      statusEl.textContent = err.message;
+      statusEl.classList.add('err');
+    }
+  }
+
+  signOutBtn.addEventListener('click', signOut);
+  main();
+})();
+</script>
+</body>
+</html>
