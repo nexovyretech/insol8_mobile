@@ -19,13 +19,13 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
   final _passwordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
 
-  bool _isEmail = false;
+  // Cognito recovers accounts by verified email only, so email is the default.
+  bool _isEmail = true;
   bool _isCodeStep = false;
   bool _isNewPasswordStep = false;
   bool _isSubmitting = false;
   bool _passwordVisible = false;
   bool _confirmPasswordVisible = false;
-  String _verificationCode = '';
 
   @override
   void initState() {
@@ -87,6 +87,21 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
       _passwordController.text.length >= 8 &&
       _passwordController.text == _confirmPasswordController.text;
 
+  /// Mirrors the Cognito pool policy so most mistakes are caught before
+  /// the code is spent.
+  String? get _passwordPolicyError {
+    final value = _passwordController.text;
+    if (value.length < 8) {
+      return 'Use at least 8 characters for your new password.';
+    }
+    if (!RegExp(r'[A-Z]').hasMatch(value) ||
+        !RegExp(r'[a-z]').hasMatch(value) ||
+        !RegExp(r'\d').hasMatch(value)) {
+      return 'Include an uppercase letter, a lowercase letter, and a number.';
+    }
+    return null;
+  }
+
   Future<void> _sendCode() async {
     if (!_isIdentifierValid) return;
     FocusScope.of(context).unfocus();
@@ -96,8 +111,15 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
         identifier: _identifierForAuth,
       );
       if (!mounted) return;
+      for (final controller in _codeControllers) {
+        controller.clear();
+      }
       setState(() => _isCodeStep = true);
-      _showMessage('A verification code has been sent.');
+      // Same wording whether or not the account exists.
+      _showMessage('If an account uses that email, we’ve sent it a code.');
+    } on AuthFailure catch (error) {
+      if (!mounted) return;
+      _showMessage(error.message);
     } on AuthNotConfiguredException {
       if (!mounted) return;
       setState(() => _isCodeStep = true);
@@ -112,27 +134,60 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
     }
   }
 
+  Future<void> _resendCode() async {
+    try {
+      await widget.authRepository.resendPasswordResetCode(
+        identifier: _identifierForAuth,
+      );
+      if (!mounted) return;
+      _showMessage('If an account uses that email, we’ve sent it a new code.');
+    } on AuthFailure catch (error) {
+      if (!mounted) return;
+      _showMessage(error.message);
+    } on AuthNotConfiguredException {
+      if (!mounted) return;
+      _showMessage(
+        'Preview only: resend will work when the backend is connected.',
+      );
+    } catch (_) {
+      if (!mounted) return;
+      _showMessage('We couldn’t resend the code. Please try again.');
+    }
+  }
+
+  String get _code =>
+      _codeControllers.map((controller) => controller.text).join();
+
+  void _clearCode() {
+    for (final controller in _codeControllers) {
+      controller.clear();
+    }
+    _codeFocusNodes.first.requestFocus();
+  }
+
+  /// Checks the code with Cognito before showing the new password fields;
+  /// a wrong or expired code keeps the user on this screen.
   Future<void> _verifyCode() async {
     if (!_hasCompleteCode) return;
     FocusScope.of(context).unfocus();
-    final code = _codeControllers.map((controller) => controller.text).join();
     setState(() => _isSubmitting = true);
     try {
       await widget.authRepository.verifyPasswordResetCode(
         identifier: _identifierForAuth,
-        code: code,
+        code: _code,
       );
       if (!mounted) return;
       setState(() {
-        _verificationCode = code;
         _isCodeStep = false;
         _isNewPasswordStep = true;
       });
-      _showMessage('Your code has been verified.');
+    } on AuthFailure catch (error) {
+      if (!mounted) return;
+      if (error.isCodeError) _clearCode();
+      _showMessage(error.message);
     } on AuthNotConfiguredException {
       if (!mounted) return;
       setState(() {
-        _verificationCode = code;
         _isCodeStep = false;
         _isNewPasswordStep = true;
       });
@@ -147,27 +202,10 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
     }
   }
 
-  Future<void> _resendCode() async {
-    try {
-      await widget.authRepository.resendPasswordResetCode(
-        identifier: _identifierForAuth,
-      );
-      if (!mounted) return;
-      _showMessage('A new verification code has been sent.');
-    } on AuthNotConfiguredException {
-      if (!mounted) return;
-      _showMessage(
-        'Preview only: resend will work when the backend is connected.',
-      );
-    } catch (_) {
-      if (!mounted) return;
-      _showMessage('We couldn’t resend the code. Please try again.');
-    }
-  }
-
   Future<void> _setNewPassword() async {
-    if (_passwordController.text.length < 8) {
-      _showMessage('Use at least 8 characters for your new password.');
+    final policyError = _passwordPolicyError;
+    if (policyError != null) {
+      _showMessage(policyError);
       return;
     }
     if (_passwordController.text != _confirmPasswordController.text) {
@@ -175,16 +213,28 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
       return;
     }
 
+    FocusScope.of(context).unfocus();
     setState(() => _isSubmitting = true);
     try {
       await widget.authRepository.resetPassword(
         identifier: _identifierForAuth,
-        code: _verificationCode,
+        code: _code,
         newPassword: _passwordController.text,
       );
       if (!mounted) return;
-      _showMessage('Your password has been updated.');
+      _showMessage('Your password has been updated. Sign in with your new password.');
       Navigator.of(context).pop();
+    } on AuthFailure catch (error) {
+      if (!mounted) return;
+      if (error.isCodeError) {
+        // The code expired while the user was choosing a password.
+        setState(() {
+          _isNewPasswordStep = false;
+          _isCodeStep = true;
+        });
+        _clearCode();
+      }
+      _showMessage(error.message);
     } on AuthNotConfiguredException {
       if (!mounted) return;
       _showMessage('Password reset is ready once the backend is connected.');
@@ -264,7 +314,7 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
 
   String get _description {
     if (_isNewPasswordStep) {
-      return 'Create a new password for your\naccount.';
+      return 'Use at least 8 characters with an uppercase\nletter, a lowercase letter, and a number.';
     }
     if (!_isCodeStep) {
       return _isEmail

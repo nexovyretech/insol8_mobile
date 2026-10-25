@@ -62,7 +62,10 @@ class _LoginPageState extends State<LoginPage> {
         rememberMe: _rememberMe,
       );
       if (!mounted) return;
-      _showMessage('You are signed in.');
+      _goHome();
+    } on AuthFailure catch (error) {
+      if (!mounted) return;
+      _showMessage(error.message);
     } on AuthNotConfiguredException {
       if (!mounted) return;
       _showMessage('Sign in is ready once the backend is connected.');
@@ -84,7 +87,10 @@ class _LoginPageState extends State<LoginPage> {
     try {
       await widget.authRepository.signInWithGoogle();
       if (!mounted) return;
-      _showMessage('You are signed in with Google.');
+      _goHome();
+    } on AuthFailure catch (error) {
+      if (!mounted) return;
+      _showMessage(error.message);
     } on AuthNotConfiguredException {
       if (!mounted) return;
       _showMessage('Google sign in is ready once the backend is connected.');
@@ -92,6 +98,10 @@ class _LoginPageState extends State<LoginPage> {
       if (!mounted) return;
       _showMessage('Google sign in failed. Please try again.');
     }
+  }
+
+  void _goHome() {
+    Navigator.of(context).pushNamedAndRemoveUntil(AppRoutes.home, (_) => false);
   }
 
   void _showMessage(String message) {

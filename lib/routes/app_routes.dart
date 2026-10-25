@@ -26,6 +26,7 @@ abstract final class AppRoutes {
     signUp: (_) => SignUpScreen(authRepository: authRepository),
     forgotPassword: (_) => ForgotPasswordPage(authRepository: authRepository),
     onboarding: (_) => OnboardingPage(repository: onboardingRepository),
-    home: (_) => const HomePage(),
+    // HomePage checks the session itself and returns to getStarted without one.
+    home: (_) => HomePage(authRepository: authRepository),
   };
 }

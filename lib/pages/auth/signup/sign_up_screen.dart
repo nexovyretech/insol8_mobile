@@ -40,6 +40,9 @@ class _SignUpScreenState extends State<SignUpScreen> {
   bool _isConfirmPasswordVisible = false;
   bool _isEmail = true;
   bool _acceptedTerms = false;
+  // Once the code is confirmed, the account exists; stepping back to the
+  // name/email/code steps would only create a second account.
+  bool _isVerified = false;
   String? _errorMessage;
 
   @override
@@ -127,7 +130,6 @@ class _SignUpScreenState extends State<SignUpScreen> {
     }
 
     setState(() {
-      _step = 2;
       _isSubmitting = true;
       _errorMessage = null;
     });
@@ -137,9 +139,19 @@ class _SignUpScreenState extends State<SignUpScreen> {
         method: _isEmail
             ? SignUpContactMethod.email
             : SignUpContactMethod.mobile,
+        firstName: _firstName.text.trim(),
+        lastName: _lastName.text.trim(),
       );
       if (!mounted) return;
-      setState(() => _isSubmitting = false);
+      for (final field in _codeFields) {
+        field.clear();
+      }
+      setState(() {
+        _isSubmitting = false;
+        _step = 2;
+      });
+    } on AuthFailure catch (error) {
+      _setSubmitError(error.message);
     } on AuthNotConfiguredException {
       _setSubmitError(
         'Verification is ready, but the backend is not connected yet.',
@@ -189,7 +201,16 @@ class _SignUpScreenState extends State<SignUpScreen> {
       setState(() {
         _isSubmitting = false;
       });
-      Navigator.of(context).pushReplacementNamed(AppRoutes.onboarding);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Your account has been created.')),
+      );
+      // The user is now signed in, so the auth screens are cleared from the
+      // stack; onboarding finishes on the home screen.
+      Navigator.of(
+        context,
+      ).pushNamedAndRemoveUntil(AppRoutes.onboarding, (_) => false);
+    } on AuthFailure catch (error) {
+      _setSubmitError(error.message);
     } on AuthNotConfiguredException {
       _setSubmitError(
         'Sign up is ready, but the backend is not connected yet. Your details are still here.',
@@ -228,9 +249,12 @@ class _SignUpScreenState extends State<SignUpScreen> {
       if (!mounted) return;
       setState(() {
         _isVerifying = false;
+        _isVerified = true;
         _errorMessage = null;
         _step = 3;
       });
+    } on AuthFailure catch (error) {
+      _setVerifyError(error.message);
     } on AuthNotConfiguredException {
       _setVerifyError('Verification will work when the backend is connected.');
     } catch (_) {
@@ -304,7 +328,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
                                   offset: const Offset(-8, 0),
                                   child: IconButton(
                                     onPressed: () {
-                                      if (_step > 0) {
+                                      if (_step > (_isVerified ? 3 : 0)) {
                                         setState(() {
                                           _step--;
                                           _errorMessage = null;
@@ -479,6 +503,11 @@ class _SignUpScreenState extends State<SignUpScreen> {
           validatePassword: (value) {
             if (value == null || value.isEmpty) return 'Enter a password.';
             if (value.length < 8) return 'Use at least 8 characters.';
+            if (!RegExp(r'[A-Z]').hasMatch(value) ||
+                !RegExp(r'[a-z]').hasMatch(value) ||
+                !RegExp(r'\d').hasMatch(value)) {
+              return 'Include an uppercase letter, a lowercase letter, and a number.';
+            }
             return null;
           },
           validateConfirmPassword: (value) =>
@@ -493,6 +522,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
           validateUsername: (value) {
             final username = value?.trim() ?? '';
             if (username.length < 3) return 'Use at least 3 characters.';
+            if (username.length > 40) return 'Use 40 characters or fewer.';
             if (!RegExp(r'^[a-zA-Z0-9_.]+$').hasMatch(username)) {
               return 'Use letters, numbers, dots, or underscores.';
             }
@@ -551,6 +581,9 @@ class _SignUpScreenState extends State<SignUpScreen> {
       );
       if (!mounted) return;
       setState(() => _errorMessage = 'A new verification code has been sent.');
+    } on AuthFailure catch (error) {
+      if (!mounted) return;
+      setState(() => _errorMessage = error.message);
     } on AuthNotConfiguredException {
       if (!mounted) return;
       setState(
