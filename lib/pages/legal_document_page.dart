@@ -12,10 +12,10 @@ class LegalDocumentPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final bodyStyle = Theme.of(context).textTheme.bodyMedium
-        ?.copyWith(fontSize: 12, height: 1.45);
+        ?.copyWith(fontSize: 14, height: 1.5);
     final headingStyle = Theme.of(context).textTheme.bodyMedium?.copyWith(
       color: AppColors.ink,
-      fontSize: 14,
+      fontSize: 16,
       fontWeight: FontWeight.w700,
       height: 1.3,
     );
@@ -52,14 +52,14 @@ class LegalDocumentPage extends StatelessWidget {
                 document.title,
                 textAlign: TextAlign.center,
                 style: Theme.of(context).textTheme.titleLarge
-                    ?.copyWith(fontSize: 17, height: 1.25),
+                    ?.copyWith(fontSize: 20, height: 1.25),
               ),
               const SizedBox(height: 4),
               Text(
                 'Last updated: ${document.lastUpdated}',
                 textAlign: TextAlign.center,
                 style: Theme.of(context).textTheme.bodyMedium
-                    ?.copyWith(color: AppColors.body, fontSize: 10),
+                    ?.copyWith(color: AppColors.body, fontSize: 12),
               ),
               const SizedBox(height: 20),
               Expanded(

@@ -157,9 +157,14 @@ class _SignUpScreenState extends State<SignUpScreen> {
   Future<void> _submitSignUp() async {
     if (!widget.authRepository.isConfigured) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
+        SnackBar(
           content: Text(
             'Preview only: account creation is waiting for the backend.',
+          ),
+          action: SnackBarAction(
+            label: 'Preview onboarding',
+            onPressed: () =>
+                Navigator.of(context).pushNamed(AppRoutes.onboarding),
           ),
         ),
       );
@@ -187,9 +192,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
       setState(() {
         _isSubmitting = false;
       });
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Your account has been created.')),
-      );
+      Navigator.of(context).pushReplacementNamed(AppRoutes.onboarding);
     } on AuthNotConfiguredException {
       _setSubmitError(
         'Sign up is ready, but the backend is not connected yet. Your details are still here.',
@@ -565,7 +568,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
 
   Widget _buildUsernameStep(BuildContext context) {
     final legalLinkStyle = Theme.of(context).textTheme.bodyMedium
-        ?.copyWith(color: AppColors.primary, fontSize: 11, height: 1.2);
+        ?.copyWith(color: AppColors.primary, fontSize: 12, height: 1.2);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -614,7 +617,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
                 child: Text.rich(
                   TextSpan(
                     style: Theme.of(context).textTheme.bodyMedium
-                        ?.copyWith(fontSize: 11, height: 1.2),
+                        ?.copyWith(fontSize: 12, height: 1.2),
                     children: [
                       const TextSpan(text: 'I agree with the '),
                       WidgetSpan(
