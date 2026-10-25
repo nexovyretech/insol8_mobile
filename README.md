@@ -1,6 +1,6 @@
-# INSOL8 Mobile
+# inSOL8 Mobile
 
-The INSOL8 Mobile is the mobile application for the INSOL8 system. It is intended for users to monitor and interact with the INSOL8 smart solar-powered laundry drying system through a mobile application.
+The inSOL8 Mobile is the mobile application for the inSOL8 system. It is intended for users to monitor and interact with the inSOL8 smart solar-powered laundry drying system through a mobile application.
 
 ## Technology Stack
 
@@ -219,7 +219,7 @@ Changes should be submitted through a pull request for review according to the t
 
 ## Physical Device Development
 
-The INSOL8 Mobile application is developed and tested using physical Android devices.
+The inSOL8 Mobile application is developed and tested using physical Android devices.
 
 Android Studio and Android Emulator are not required for the project's development workflow.
 
@@ -247,7 +247,7 @@ flutter devices
 
 ## Repository
 
-This repository is maintained under the shared INSOL8 GitHub account.
+This repository is maintained under the shared inSOL8 GitHub account.
 
 Repository:
 
@@ -259,8 +259,8 @@ Access should be granted only to authorized project members.
 
 This repository currently contains the initial Flutter and Dart application setup. The Android development environment and physical-device testing workflow have been configured successfully.
 
-Application-specific screens, components, services, device communication, and other functionality will be developed as the INSOL8 system progresses.
+Application-specific screens, components, services, device communication, and other functionality will be developed as the inSOL8 system progresses.
 
 ## License
 
-This project is currently intended for the INSOL8 project team and is not licensed for public redistribution.
+This project is currently intended for the inSOL8 project team and is not licensed for public redistribution.
