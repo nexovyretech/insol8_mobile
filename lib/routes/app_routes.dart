@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
 
-import 'package:insol8_mobile/pages/get_started_page.dart';
-import 'package:insol8_mobile/pages/forgot_password_page.dart';
-import 'package:insol8_mobile/pages/login_page.dart';
-import 'package:insol8_mobile/pages/home_page.dart';
-import 'package:insol8_mobile/pages/onboarding_page.dart';
-import 'package:insol8_mobile/pages/sign_up_screen.dart';
+import 'package:insol8_mobile/pages/auth/forgot_password/forgot_password_page.dart';
+import 'package:insol8_mobile/pages/auth/get_started_page.dart';
+import 'package:insol8_mobile/pages/auth/login_page.dart';
+import 'package:insol8_mobile/pages/auth/signup/sign_up_screen.dart';
+import 'package:insol8_mobile/pages/home/home_page.dart';
+import 'package:insol8_mobile/pages/onboarding/onboarding_page.dart';
 import 'package:insol8_mobile/services/auth_repository.dart';
 import 'package:insol8_mobile/services/onboarding_repository.dart';
 

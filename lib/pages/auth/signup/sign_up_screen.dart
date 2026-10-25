@@ -1,20 +1,17 @@
 import 'package:flutter/material.dart';
 
 import 'package:insol8_mobile/models/sign_up_data.dart';
-import 'package:insol8_mobile/constants/legal_documents.dart';
 import 'package:insol8_mobile/models/legal_document.dart';
-import 'package:insol8_mobile/pages/legal_document_page.dart';
+import 'package:insol8_mobile/pages/auth/signup/signup_shared_widgets.dart';
+import 'package:insol8_mobile/pages/auth/signup/signup_step_widgets.dart';
+import 'package:insol8_mobile/pages/legal/legal_document_page.dart';
 import 'package:insol8_mobile/routes/app_routes.dart';
 import 'package:insol8_mobile/services/auth_repository.dart';
 import 'package:insol8_mobile/theme/app_colors.dart';
 import 'package:insol8_mobile/theme/app_spacing.dart';
-import 'package:insol8_mobile/widgets/auth/auth_password_field.dart';
-import 'package:insol8_mobile/widgets/auth/auth_text_field.dart';
 import 'package:insol8_mobile/widgets/auth/brand_mark.dart';
-import 'package:insol8_mobile/widgets/auth/phone_number_field.dart';
 import 'package:insol8_mobile/widgets/auth/primary_button.dart';
 import 'package:insol8_mobile/widgets/auth/signup_progress.dart';
-import 'package:insol8_mobile/widgets/auth/verification_code_input.dart';
 
 class SignUpScreen extends StatefulWidget {
   const SignUpScreen({super.key, required this.authRepository});
@@ -369,7 +366,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
                           children: [
                             if (_errorMessage != null) ...[
                               const SizedBox(height: 8),
-                              _MessageBanner(message: _errorMessage!),
+                              SignUpMessageBanner(message: _errorMessage!),
                             ],
                             const SizedBox(height: 12),
                             PrimaryButton(
@@ -385,7 +382,9 @@ class _SignUpScreenState extends State<SignUpScreen> {
                             const SizedBox(height: 12),
                             Padding(
                               padding: const EdgeInsets.only(bottom: 10),
-                              child: _SignInPrompt(onTap: _showSignInNotice),
+                              child: SignUpSignInPrompt(
+                                onTap: _showSignInNotice,
+                              ),
                             ),
                           ],
                         ),
@@ -431,159 +430,67 @@ class _SignUpScreenState extends State<SignUpScreen> {
   }
 
   Widget _buildStepContent(BuildContext context) {
-    if (_step == 2) return _buildVerificationStep(context);
     switch (_step) {
       case 0:
-        return _buildNameStep(context);
+        return SignUpNameStep(
+          firstNameController: _firstName,
+          lastNameController: _lastName,
+          validateFirstName: (value) => _requiredName(value, 'first name'),
+          validateLastName: (value) => _requiredName(value, 'last name'),
+        );
       case 1:
-        return _buildContactStep(context);
+        return SignUpContactStep(
+          isEmail: _isEmail,
+          emailController: _emailContact,
+          mobileController: _mobileContact,
+          validateEmail: _validateContact,
+          validateMobile: _validatePhoneNumber,
+          onToggleMethod: () => setState(() {
+            _isEmail = !_isEmail;
+            _activeContact.clear();
+            _formKey.currentState?.reset();
+          }),
+        );
+      case 2:
+        return SignUpVerificationStep(
+          isEmail: _isEmail,
+          codeControllers: _codeFields,
+          codeFocusNodes: _codeFocus,
+          onCodeChanged: (index, value) {
+            if (value.isNotEmpty && index < _codeFocus.length - 1) {
+              _codeFocus[index + 1].requestFocus();
+            } else if (value.isEmpty && index > 0) {
+              _codeFocus[index - 1].requestFocus();
+            }
+          },
+          onResendCode: _resendCode,
+        );
       case 3:
-        return _buildPasswordStep(context);
-      case 4:
-        return _buildUsernameStep(context);
-      default:
-        return const SizedBox.shrink();
-    }
-  }
-
-  Widget _buildNameStep(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        _StepHeading(
-          title: 'What’s your name?',
-          description: 'Add your name so we can identify who you are.',
-        ),
-        const SizedBox(height: 28),
-        AuthTextField(
-          controller: _firstName,
-          hintText: 'Enter your first name',
-          textCapitalization: TextCapitalization.words,
-          textInputAction: TextInputAction.next,
-          validator: (value) => _requiredName(value, 'first name'),
-        ),
-        const SizedBox(height: 10),
-        AuthTextField(
-          controller: _lastName,
-          hintText: 'Enter your last name',
-          textCapitalization: TextCapitalization.words,
-          textInputAction: TextInputAction.next,
-          validator: (value) => _requiredName(value, 'last name'),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildContactStep(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        _StepHeading(
-          title: _isEmail ? 'What’s your email?' : 'What’s your mobile?',
-          description: _isEmail
-              ? 'Share your email where we can reach you.'
-              : 'Share your mobile number where we can reach you.',
-        ),
-        const SizedBox(height: 28),
-        if (_isEmail)
-          AuthTextField(
-            key: const ValueKey('signup-email-contact'),
-            controller: _emailContact,
-            hintText: 'Enter your email',
-            keyboardType: TextInputType.emailAddress,
-            validator: _validateContact,
-            textInputAction: TextInputAction.done,
-          )
-        else
-          PhoneNumberField(
-            key: const ValueKey('signup-mobile-contact'),
-            controller: _mobileContact,
-            validator: _validatePhoneNumber,
-          ),
-        const SizedBox(height: 16),
-        Wrap(
-          crossAxisAlignment: WrapCrossAlignment.center,
-          children: [
-            Text('Or you can ', style: Theme.of(context).textTheme.bodyMedium),
-            TextButton(
-              onPressed: () => setState(() {
-                _isEmail = !_isEmail;
-                _activeContact.clear();
-                _formKey.currentState?.reset();
-              }),
-              style: TextButton.styleFrom(
-                minimumSize: Size.zero,
-                padding: EdgeInsets.zero,
-                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                foregroundColor: AppColors.primary,
-                textStyle: Theme.of(context).textTheme.bodyMedium,
-              ),
-              child: Text(
-                _isEmail ? 'sign up with mobile number' : 'sign up with email',
-              ),
-            ),
-          ],
-        ),
-      ],
-    );
-  }
-
-  Widget _buildPasswordStep(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const _StepHeading(
-          title: 'Create a password',
-          description:
-              'Create a password comprising a\nminimum 8 letters or digit',
-        ),
-        const SizedBox(height: 28),
-        AuthPasswordField(
-          controller: _password,
-          hintText: 'Enter your password',
-          visible: _isPasswordVisible,
-          onToggleVisibility: () =>
+        return SignUpPasswordStep(
+          passwordController: _password,
+          confirmPasswordController: _confirmPassword,
+          passwordVisible: _isPasswordVisible,
+          confirmPasswordVisible: _isConfirmPasswordVisible,
+          onTogglePasswordVisibility: () =>
               setState(() => _isPasswordVisible = !_isPasswordVisible),
-          textInputAction: TextInputAction.next,
-          validator: (value) {
+          onToggleConfirmPasswordVisibility: () => setState(
+            () => _isConfirmPasswordVisible = !_isConfirmPasswordVisible,
+          ),
+          validatePassword: (value) {
             if (value == null || value.isEmpty) return 'Enter a password.';
             if (value.length < 8) return 'Use at least 8 characters.';
             return null;
           },
-        ),
-        const SizedBox(height: 10),
-        AuthPasswordField(
-          controller: _confirmPassword,
-          hintText: 'Confirm your password',
-          visible: _isConfirmPasswordVisible,
-          onToggleVisibility: () => setState(
-            () => _isConfirmPasswordVisible = !_isConfirmPasswordVisible,
-          ),
-          validator: (value) =>
+          validateConfirmPassword: (value) =>
               value != _password.text ? 'Passwords do not match.' : null,
-        ),
-      ],
-    );
-  }
-
-  Widget _buildUsernameStep(BuildContext context) {
-    final legalLinkStyle = Theme.of(context).textTheme.bodyMedium
-        ?.copyWith(color: AppColors.primary, fontSize: 12, height: 1.2);
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const _StepHeading(
-          title: 'Create username',
-          description:
-              'Choose a username. You can update it\nwhenever you like',
-        ),
-        const SizedBox(height: 28),
-        AuthTextField(
-          controller: _username,
-          hintText: 'Enter a username',
-          textInputAction: TextInputAction.done,
-          validator: (value) {
+        );
+      case 4:
+        return SignUpUsernameStep(
+          usernameController: _username,
+          acceptedTerms: _acceptedTerms,
+          onTermsChanged: (value) => setState(() => _acceptedTerms = value),
+          onOpenLegalDocument: _openLegalDocument,
+          validateUsername: (value) {
             final username = value?.trim() ?? '';
             if (username.length < 3) return 'Use at least 3 characters.';
             if (!RegExp(r'^[a-zA-Z0-9_.]+$').hasMatch(username)) {
@@ -591,124 +498,10 @@ class _SignUpScreenState extends State<SignUpScreen> {
             }
             return null;
           },
-        ),
-        const SizedBox(height: 52),
-        Row(
-          crossAxisAlignment: CrossAxisAlignment.center,
-          children: [
-            SizedBox(
-              width: 22,
-              height: 22,
-              child: Checkbox(
-                value: _acceptedTerms,
-                onChanged: (value) =>
-                    setState(() => _acceptedTerms = value ?? false),
-                activeColor: AppColors.primary,
-                side: const BorderSide(color: AppColors.fieldHint),
-                visualDensity: VisualDensity.compact,
-                materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-              ),
-            ),
-            const SizedBox(width: 6),
-            Flexible(
-              child: FittedBox(
-                fit: BoxFit.scaleDown,
-                alignment: Alignment.centerLeft,
-                child: Text.rich(
-                  TextSpan(
-                    style: Theme.of(context).textTheme.bodyMedium
-                        ?.copyWith(fontSize: 12, height: 1.2),
-                    children: [
-                      const TextSpan(text: 'I agree with the '),
-                      WidgetSpan(
-                        alignment: PlaceholderAlignment.middle,
-                        child: Semantics(
-                          link: true,
-                          child: InkWell(
-                            onTap: () =>
-                                _openLegalDocument(LegalDocuments.terms),
-                            child: Text(
-                              'Terms and Conditions',
-                              style: legalLinkStyle,
-                            ),
-                          ),
-                        ),
-                      ),
-                      const TextSpan(text: ' and '),
-                      WidgetSpan(
-                        alignment: PlaceholderAlignment.middle,
-                        child: Semantics(
-                          link: true,
-                          child: InkWell(
-                            onTap: () =>
-                                _openLegalDocument(LegalDocuments.privacy),
-                            child: Text(
-                              'Privacy Policy',
-                              style: legalLinkStyle,
-                            ),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                  maxLines: 1,
-                  softWrap: false,
-                ),
-              ),
-            ),
-          ],
-        ),
-      ],
-    );
-  }
-
-  Widget _buildVerificationStep(BuildContext context) {
-    final description = _isEmail
-        ? 'Enter the verification code we’ve sent\nto your inbox to verify your account.'
-        : 'Enter the verification code we’ve sent\nto your phone to verify your account.';
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        _StepHeading(
-          title: 'Verify your ${_isEmail ? 'email' : 'mobile'}',
-          description: description,
-        ),
-        const SizedBox(height: 28),
-        VerificationCodeInput(
-          controllers: _codeFields,
-          focusNodes: _codeFocus,
-          onChanged: (index, value) {
-            if (value.isNotEmpty && index < _codeFocus.length - 1) {
-              _codeFocus[index + 1].requestFocus();
-            } else if (value.isEmpty && index > 0) {
-              _codeFocus[index - 1].requestFocus();
-            }
-          },
-        ),
-        const SizedBox(height: 18),
-        Wrap(
-          crossAxisAlignment: WrapCrossAlignment.center,
-          children: [
-            Text(
-              'Didn’t get the code? ',
-              style: Theme.of(context).textTheme.bodyMedium
-                  ?.copyWith(fontSize: 12),
-            ),
-            TextButton(
-              onPressed: _resendCode,
-              style: TextButton.styleFrom(
-                minimumSize: Size.zero,
-                padding: EdgeInsets.zero,
-                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                foregroundColor: AppColors.primary,
-                textStyle: const TextStyle(fontSize: 12),
-              ),
-              child: const Text('Resend it'),
-            ),
-          ],
-        ),
-      ],
-    );
+        );
+      default:
+        return const SizedBox.shrink();
+    }
   }
 
   String? _requiredName(String? value, String label) {
@@ -780,85 +573,6 @@ class _SignUpScreenState extends State<SignUpScreen> {
     Navigator.of(context).push(
       MaterialPageRoute<void>(
         builder: (_) => LegalDocumentPage(document: document),
-      ),
-    );
-  }
-}
-
-class _StepHeading extends StatelessWidget {
-  const _StepHeading({required this.title, required this.description});
-
-  final String title;
-  final String description;
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(title, style: Theme.of(context).textTheme.titleLarge),
-        const SizedBox(height: 20),
-        Text(description, style: Theme.of(context).textTheme.bodyMedium),
-      ],
-    );
-  }
-}
-
-class _SignInPrompt extends StatelessWidget {
-  const _SignInPrompt({required this.onTap});
-
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return Wrap(
-      alignment: WrapAlignment.center,
-      crossAxisAlignment: WrapCrossAlignment.center,
-      children: [
-        const Text(
-          'Already have an account? ',
-          style: TextStyle(fontSize: 12, color: AppColors.ink),
-        ),
-        TextButton(
-          onPressed: onTap,
-          style: TextButton.styleFrom(
-            minimumSize: Size.zero,
-            padding: EdgeInsets.zero,
-            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-            foregroundColor: AppColors.primary,
-            textStyle: const TextStyle(fontSize: 12),
-          ),
-          child: const Text('Sign in'),
-        ),
-      ],
-    );
-  }
-}
-
-class _MessageBanner extends StatelessWidget {
-  const _MessageBanner({required this.message});
-
-  final String message;
-
-  @override
-  Widget build(BuildContext context) {
-    final success =
-        message == 'Your account has been verified.' ||
-        message == 'A new verification code has been sent.';
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
-      decoration: BoxDecoration(
-        color: success ? AppColors.field : AppColors.errorSurface,
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Text(
-        message,
-        style: TextStyle(
-          fontSize: 12,
-          height: 1.3,
-          color: success ? AppColors.body : AppColors.error,
-        ),
       ),
     );
   }

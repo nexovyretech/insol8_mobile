@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_svg/flutter_svg.dart';
 
+import 'package:insol8_mobile/pages/auth/login_widgets.dart';
 import 'package:insol8_mobile/routes/app_routes.dart';
 import 'package:insol8_mobile/services/auth_repository.dart';
 import 'package:insol8_mobile/theme/app_colors.dart';
@@ -159,7 +159,9 @@ class _LoginPageState extends State<LoginPage> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          const _FieldLabel('Username, Email or Mobile Number'),
+                          const LoginFieldLabel(
+                            'Username, Email or Mobile Number',
+                          ),
                           const SizedBox(height: 8),
                           AuthTextField(
                             controller: _identifierController,
@@ -172,7 +174,7 @@ class _LoginPageState extends State<LoginPage> {
                                 : null,
                           ),
                           const SizedBox(height: 18),
-                          const _FieldLabel('Password'),
+                          const LoginFieldLabel('Password'),
                           const SizedBox(height: 8),
                           AuthPasswordField(
                             controller: _passwordController,
@@ -250,93 +252,14 @@ class _LoginPageState extends State<LoginPage> {
                       ],
                     ),
                     const SizedBox(height: 22),
-                    const _OrDivider(),
+                    const LoginOrDivider(),
                     const SizedBox(height: 22),
-                    _GoogleSignInButton(onPressed: _signInWithGoogle),
+                    GoogleSignInButton(onPressed: _signInWithGoogle),
                   ],
                 ),
               ),
             ),
           ),
-        ),
-      ),
-    );
-  }
-}
-
-class _FieldLabel extends StatelessWidget {
-  const _FieldLabel(this.label);
-
-  final String label;
-
-  @override
-  Widget build(BuildContext context) => Text(
-    label,
-    style: Theme.of(context).textTheme.bodyMedium?.copyWith(fontSize: 12),
-  );
-}
-
-class _OrDivider extends StatelessWidget {
-  const _OrDivider();
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      children: [
-        _dividerLine(),
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 14),
-          child: Text(
-            'Or',
-            style: Theme.of(context).textTheme.bodyMedium
-                ?.copyWith(color: AppColors.fieldHint),
-          ),
-        ),
-        _dividerLine(),
-      ],
-    );
-  }
-
-  Widget _dividerLine() => const Expanded(
-    child: Divider(color: AppColors.inactive, thickness: 1, height: 1),
-  );
-}
-
-class _GoogleSignInButton extends StatelessWidget {
-  const _GoogleSignInButton({required this.onPressed});
-
-  final VoidCallback onPressed;
-
-  @override
-  Widget build(BuildContext context) {
-    return SizedBox(
-      width: double.infinity,
-      height: 52,
-      child: FilledButton(
-        onPressed: onPressed,
-        style: FilledButton.styleFrom(
-          backgroundColor: AppColors.googleButton,
-          foregroundColor: Colors.white,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
-          ),
-        ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            SvgPicture.asset(
-              'assets/icons/google_g.svg',
-              width: 19,
-              height: 19,
-              semanticsLabel: 'Google',
-            ),
-            const SizedBox(width: 10),
-            Text(
-              'Continue with Google',
-              style: Theme.of(context).textTheme.labelLarge
-                  ?.copyWith(color: Colors.white, fontSize: 13),
-            ),
-          ],
         ),
       ),
     );
