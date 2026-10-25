@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import 'package:insol8_mobile/routes/app_routes.dart';
 import 'package:insol8_mobile/services/auth_repository.dart';
+import 'package:insol8_mobile/services/onboarding_repository.dart';
 import 'package:insol8_mobile/theme/app_theme.dart';
 
 void main() {
@@ -9,9 +10,15 @@ void main() {
 }
 
 class Insol8App extends StatelessWidget {
-  const Insol8App({super.key});
+  const Insol8App({
+    super.key,
+    this.authRepository = const UnconfiguredAuthRepository(),
+    this.onboardingRepository = const MockOnboardingRepository(),
+  });
 
-  static final _authRepository = UnconfiguredAuthRepository();
+  /// Inject an API-backed implementation here when the backend is available.
+  final AuthRepository authRepository;
+  final OnboardingRepository onboardingRepository;
 
   @override
   Widget build(BuildContext context) {
@@ -20,7 +27,7 @@ class Insol8App extends StatelessWidget {
       debugShowCheckedModeBanner: false,
       theme: AppTheme.light,
       initialRoute: AppRoutes.getStarted,
-      routes: AppRoutes.build(_authRepository),
+      routes: AppRoutes.build(authRepository, onboardingRepository),
     );
   }
 }

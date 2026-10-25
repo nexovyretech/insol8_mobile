@@ -19,7 +19,7 @@ class SignupProgress extends StatelessWidget {
   Widget build(BuildContext context) {
     return LayoutBuilder(
       builder: (context, constraints) {
-        final lineWidth = ((constraints.maxWidth - 4 * 45) / 3)
+        final lineWidth = ((constraints.maxWidth - 4 * 56) / 3)
             .clamp(6.0, 24.0)
             .toDouble();
         return Row(
@@ -63,7 +63,7 @@ class _ProgressItem extends StatelessWidget {
   Widget build(BuildContext context) {
     final color = active ? AppColors.primary : AppColors.inactive;
     return SizedBox(
-      width: 45,
+      width: 56,
       child: Column(
         children: [
           Container(
@@ -76,7 +76,7 @@ class _ProgressItem extends StatelessWidget {
           Text(
             label,
             maxLines: 1,
-            style: TextStyle(color: color, fontSize: 9, height: 1.1),
+            style: TextStyle(color: color, fontSize: 11, height: 1.1),
           ),
         ],
       ),

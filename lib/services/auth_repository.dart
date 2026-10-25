@@ -51,6 +51,8 @@ abstract interface class AuthRepository {
 /// Keeps the UI runnable before the team backend is available, without
 /// pretending a registration or verification succeeded.
 class UnconfiguredAuthRepository implements AuthRepository {
+  const UnconfiguredAuthRepository();
+
   @override
   bool get isConfigured => false;
 
