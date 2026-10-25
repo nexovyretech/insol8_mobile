@@ -7,6 +7,7 @@ abstract final class AppColors {
   static const body = Color(0xFF674E45);
   static const primary = Color(0xFFF26738);
   static const primaryDark = Color(0xFFE95425);
+  static const sectionLabel = Color(0xFFF9B18A);
   static const googleButton = Color(0xFFB6401F);
   static const field = Color(0xFFFFE8D9);
   static const fieldHint = Color(0xFFB99D8F);

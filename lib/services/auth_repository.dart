@@ -79,6 +79,8 @@ class AuthFailure implements Exception {
 /// Keeps the UI runnable before the team backend is available, without
 /// pretending a registration or verification succeeded.
 class UnconfiguredAuthRepository implements AuthRepository {
+  const UnconfiguredAuthRepository();
+
   @override
   bool get isConfigured => false;
 

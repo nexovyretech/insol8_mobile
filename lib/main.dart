@@ -9,6 +9,7 @@ import 'package:insol8_mobile/amplifyconfiguration.dart';
 import 'package:insol8_mobile/routes/app_routes.dart';
 import 'package:insol8_mobile/services/auth_repository.dart';
 import 'package:insol8_mobile/services/cognito_auth_repository.dart';
+import 'package:insol8_mobile/services/onboarding_repository.dart';
 import 'package:insol8_mobile/theme/app_theme.dart';
 
 Future<void> main() async {
@@ -50,10 +51,15 @@ class Insol8App extends StatelessWidget {
     super.key,
     required this.authRepository,
     required this.initialRoute,
+    this.onboardingRepository = const MockOnboardingRepository(),
   });
 
   final AuthRepository authRepository;
   final String initialRoute;
+
+  /// Inject an API-backed implementation here when the onboarding backend
+  /// is connected.
+  final OnboardingRepository onboardingRepository;
 
   @override
   Widget build(BuildContext context) {
@@ -62,7 +68,7 @@ class Insol8App extends StatelessWidget {
       debugShowCheckedModeBanner: false,
       theme: AppTheme.light,
       initialRoute: initialRoute,
-      routes: AppRoutes.build(authRepository),
+      routes: AppRoutes.build(authRepository, onboardingRepository),
     );
   }
 }

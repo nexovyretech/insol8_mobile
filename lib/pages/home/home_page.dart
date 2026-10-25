@@ -8,7 +8,7 @@ import 'package:insol8_mobile/theme/app_spacing.dart';
 import 'package:insol8_mobile/widgets/auth/brand_mark.dart';
 import 'package:insol8_mobile/widgets/auth/primary_button.dart';
 
-/// Signed-in landing screen. Onboarding is not part of this flow yet.
+/// Signed-in landing screen; sign-in and the onboarding flow both end here.
 class HomePage extends StatefulWidget {
   const HomePage({super.key, required this.authRepository});
 
