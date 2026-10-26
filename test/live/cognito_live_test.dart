@@ -2,7 +2,7 @@
 // Skipped unless INSOL8_LIVE=1. Credentials come from environment variables
 // so they never appear in source or command lines:
 //   QA_EMAIL, QA_PASSWORD, QA_APP_USERNAME     account with a Neon profile
-//   QA2_EMAIL, QA2_PASSWORD                    account without a profile yet
+//   QA3_EMAIL, QA3_PASSWORD                    account without a profile yet
 //   QA_SIGNUP_EMAIL                            unused address for sign-up
 @Tags(['live'])
 library;
@@ -52,12 +52,13 @@ void main() {
       expect(await auth.hasActiveSession(), isFalse);
     });
 
-    test('email sign-in loads the profile; session persists; sign-out clears it', () async {
-      await auth.signIn(
-        identifier: _need('QA_EMAIL'),
+    test('email sign-in of an existing account lands on the dashboard; sign-out clears it', () async {
+      final landing = await auth.signIn(
+        identifier: _need('QA_EMAIL').toUpperCase(),
         password: _need('QA_PASSWORD'),
         rememberMe: true,
       );
+      expect(landing, AuthLanding.home);
       expect(await auth.hasActiveSession(), isTrue);
       final profile = await auth.loadProfile();
       expect(profile.username, _need('QA_APP_USERNAME'));
@@ -68,12 +69,13 @@ void main() {
       await expectLater(auth.loadProfile(), throwsA(isA<AuthFailure>()));
     });
 
-    test('app-username sign-in resolves through the API', () async {
-      await auth.signIn(
-        identifier: _need('QA_APP_USERNAME'),
+    test('app-username sign-in resolves through the API, ignoring case', () async {
+      final landing = await auth.signIn(
+        identifier: _need('QA_APP_USERNAME').toUpperCase(),
         password: _need('QA_PASSWORD'),
         rememberMe: true,
       );
+      expect(landing, AuthLanding.home);
       expect((await auth.loadProfile()).username, _need('QA_APP_USERNAME'));
       await auth.signOut();
     });
@@ -89,17 +91,42 @@ void main() {
       await auth.signOut();
     });
 
-    test('first sign-in without a profile creates one from Cognito attributes', () async {
-      await auth.signIn(
-        identifier: _need('QA2_EMAIL'),
-        password: _need('QA2_PASSWORD'),
+    test('a brand-new account lands on onboarding once, then on the dashboard', () async {
+      final first = await auth.signIn(
+        identifier: _need('QA3_EMAIL'),
+        password: _need('QA3_PASSWORD'),
         rememberMe: true,
       );
+      expect(first, AuthLanding.onboarding);
       final profile = await auth.loadProfile();
-      expect(profile.firstName, 'Profile');
-      expect(profile.lastName, 'Later');
-      expect(profile.username, matches(RegExp(r'^profilelater\d{4}$')));
+      expect(profile.firstName, 'New');
+      expect(profile.lastName, 'Account');
+      expect(profile.username, matches(RegExp(r'^newaccount\d{4}$')));
       await auth.signOut();
+
+      final second = await auth.signIn(
+        identifier: _need('QA3_EMAIL'),
+        password: _need('QA3_PASSWORD'),
+        rememberMe: true,
+      );
+      expect(second, AuthLanding.home);
+      await auth.signOut();
+    });
+
+    test('sign-up with an email that already has an account is refused before any code', () async {
+      await expectLater(
+        auth.requestVerificationCode(
+          contact: _need('QA_EMAIL').toUpperCase(),
+          method: SignUpContactMethod.email,
+          firstName: 'Dup',
+          lastName: 'Licate',
+        ),
+        throwsA(isA<AuthFailure>().having(
+          (e) => e.message,
+          'message',
+          contains('An account with this email already exists'),
+        )),
+      );
     });
 
     test('username availability reflects taken names', () async {

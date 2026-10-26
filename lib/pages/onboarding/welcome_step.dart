@@ -24,8 +24,12 @@ class OnboardingWelcomeStep extends StatelessWidget {
   Widget build(BuildContext context) {
     return OnboardingScaffold(
       showBack: false,
-      child: Column(
-        children: [
+      // The logo fills spare height; on very short screens the content
+      // scrolls and the button stays pinned.
+      child: OnboardingStickyLayout(
+        fillViewport: true,
+        crossAxisAlignment: CrossAxisAlignment.center,
+        content: [
           Expanded(
             child: Center(
               child: SvgPicture.asset(
@@ -77,7 +81,9 @@ class OnboardingWelcomeStep extends StatelessWidget {
               ),
             ),
           ),
-          const SizedBox(height: 26),
+          const SizedBox(height: 14),
+        ],
+        actions: [
           SizedBox(
             width: double.infinity,
             child: OnboardingGradientButton(

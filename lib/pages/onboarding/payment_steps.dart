@@ -27,9 +27,8 @@ class OnboardingPaymentStep extends StatelessWidget {
     return OnboardingScaffold(
       showBack: true,
       onBack: onBack,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
+      child: OnboardingStickyLayout(
+        content: [
           const SizedBox(height: 20),
           Text(
             'Complete your\nsubscription',
@@ -71,7 +70,9 @@ class OnboardingPaymentStep extends StatelessWidget {
               ],
             ),
           ),
-          const Spacer(),
+          const SizedBox(height: 8),
+        ],
+        actions: [
           OnboardingGradientButton(
             label:
                 'Pay ₱ ${plan.price.toStringAsFixed(2)} via ${paymentMethod.label}',
@@ -81,16 +82,20 @@ class OnboardingPaymentStep extends StatelessWidget {
           const Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              OnboardingTrustNote(
-                icon: Icons.shield_outlined,
-                title: 'Secure payment',
-                subtitle: 'Your data is encrypted',
+              Flexible(
+                child: OnboardingTrustNote(
+                  icon: Icons.shield_outlined,
+                  title: 'Secure payment',
+                  subtitle: 'Your data is encrypted',
+                ),
               ),
               SizedBox(width: 18),
-              OnboardingTrustNote(
-                icon: Icons.lock_outline,
-                title: 'Privacy first',
-                subtitle: 'We respect your data',
+              Flexible(
+                child: OnboardingTrustNote(
+                  icon: Icons.lock_outline,
+                  title: 'Privacy first',
+                  subtitle: 'We respect your data',
+                ),
               ),
             ],
           ),
@@ -312,9 +317,10 @@ class OnboardingPaymentSuccessStep extends StatelessWidget {
   Widget build(BuildContext context) {
     return OnboardingScaffold(
       showBack: false,
-      child: Column(
-        children: [
-          const Spacer(),
+      child: OnboardingStickyLayout(
+        centerContent: true,
+        crossAxisAlignment: CrossAxisAlignment.center,
+        content: [
           Text(
             'Your payment has been successful!',
             textAlign: TextAlign.center,
@@ -363,7 +369,8 @@ class OnboardingPaymentSuccessStep extends StatelessWidget {
             style: Theme.of(context).textTheme.bodySmall
                 ?.copyWith(color: AppColors.fieldHint, fontSize: 14),
           ),
-          const Spacer(),
+        ],
+        actions: [
           OnboardingGradientButton(
             label: buttonLabel,
             onPressed: onContinue,

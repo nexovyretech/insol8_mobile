@@ -3,6 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:insol8_mobile/main.dart';
 import 'package:insol8_mobile/models/sign_up_data.dart';
 import 'package:insol8_mobile/models/user_profile.dart';
+import 'package:insol8_mobile/pages/onboarding/onboarding_page.dart';
 import 'package:insol8_mobile/routes/app_routes.dart';
 import 'package:insol8_mobile/services/auth_repository.dart';
 import 'package:insol8_mobile/widgets/auth/auth_password_field.dart';
@@ -34,8 +35,12 @@ class _FakeAuthRepository extends UnconfiguredAuthRepository {
     email: 'jane@example.com',
   );
 
+  /// What the next sign-in reports: home for an existing account,
+  /// onboarding for a brand-new one.
+  AuthLanding landing = AuthLanding.home;
+
   @override
-  Future<void> signIn({
+  Future<AuthLanding> signIn({
     required String identifier,
     required String password,
     required bool rememberMe,
@@ -43,6 +48,17 @@ class _FakeAuthRepository extends UnconfiguredAuthRepository {
     calls.add('signIn:$identifier');
     if (signInFailure != null) throw signInFailure!;
     signedIn = true;
+    return landing;
+  }
+
+  AuthFailure? googleFailure;
+
+  @override
+  Future<AuthLanding> signInWithGoogle() async {
+    calls.add('google');
+    if (googleFailure != null) throw googleFailure!;
+    signedIn = true;
+    return landing;
   }
 
   @override
@@ -83,6 +99,27 @@ class _FakeAuthRepository extends UnconfiguredAuthRepository {
     String? firstName,
     String? lastName,
   }) async => calls.add('signUp:$contact:$firstName $lastName');
+
+  @override
+  Future<void> verifyContact({
+    required String contact,
+    required SignUpContactMethod method,
+    required String code,
+  }) async => calls.add('verify:$code');
+}
+
+/// Onboarding animates continuously, so pump frames instead of settling.
+Future<void> _pumpFrames(WidgetTester tester) async {
+  for (var i = 0; i < 10; i++) {
+    await tester.pump(const Duration(milliseconds: 100));
+  }
+}
+
+Future<void> _tapGoogle(WidgetTester tester) async {
+  await tester.tap(find.text('Sign In'));
+  await tester.pumpAndSettle();
+  await _tapVisible(tester, find.text('Continue with Google'));
+  await _pumpFrames(tester);
 }
 
 Future<void> _signInWith(WidgetTester tester, String password) async {
@@ -326,5 +363,142 @@ void main() {
     await _tapVisible(tester, find.text('Set New Password'));
     await tester.pumpAndSettle();
     expect(auth.calls.last, 'confirmReset:222222');
+  });
+
+  testWidgets('first Google sign-in (new account) goes to onboarding', (
+    WidgetTester tester,
+  ) async {
+    final auth = _FakeAuthRepository()..landing = AuthLanding.onboarding;
+    await tester.pumpWidget(
+      Insol8App(authRepository: auth, initialRoute: AppRoutes.getStarted),
+    );
+    await tester.pumpAndSettle();
+    await _tapGoogle(tester);
+
+    expect(auth.calls, ['google']);
+    expect(find.byType(OnboardingPage), findsOneWidget);
+  });
+
+  testWidgets('Google sign-in for an existing account goes to the dashboard', (
+    WidgetTester tester,
+  ) async {
+    final auth = _FakeAuthRepository()..landing = AuthLanding.home;
+    await tester.pumpWidget(
+      Insol8App(authRepository: auth, initialRoute: AppRoutes.getStarted),
+    );
+    await tester.pumpAndSettle();
+    await _tapGoogle(tester);
+    await tester.pumpAndSettle();
+
+    expect(find.byType(OnboardingPage), findsNothing);
+    expect(find.text('Welcome, Jane!'), findsOneWidget);
+  });
+
+  testWidgets('Google sign-up with an email that already has an account is refused', (
+    WidgetTester tester,
+  ) async {
+    const message =
+        'An account with this email already exists. Sign in with your email and password, or reset your password.';
+    final auth = _FakeAuthRepository()..googleFailure = const AuthFailure(message);
+    await tester.pumpWidget(
+      Insol8App(authRepository: auth, initialRoute: AppRoutes.getStarted),
+    );
+    await tester.pumpAndSettle();
+    await _tapGoogle(tester);
+    await tester.pumpAndSettle();
+
+    expect(find.text(message), findsOneWidget);
+    expect(find.text('Welcome Back!'), findsOneWidget);
+  });
+
+  testWidgets('email sign-in of a brand-new account goes to onboarding', (
+    WidgetTester tester,
+  ) async {
+    final auth = _FakeAuthRepository()..landing = AuthLanding.onboarding;
+    await tester.pumpWidget(
+      Insol8App(authRepository: auth, initialRoute: AppRoutes.getStarted),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Sign In'));
+    await tester.pumpAndSettle();
+    final fields = find.byType(TextFormField);
+    await tester.enterText(fields.at(0), 'new@example.com');
+    await tester.enterText(fields.at(1), 'GoodPass1');
+    await tester.pump();
+    await _tapVisible(tester, find.widgetWithText(FilledButton, 'Sign in'));
+    await _pumpFrames(tester);
+
+    expect(find.byType(OnboardingPage), findsOneWidget);
+  });
+
+  testWidgets('sign-up rejects mismatched passwords and stays on that step', (
+    WidgetTester tester,
+  ) async {
+    final auth = _FakeAuthRepository();
+    await tester.pumpWidget(
+      Insol8App(authRepository: auth, initialRoute: AppRoutes.signUp),
+    );
+    await tester.pumpAndSettle();
+    final names = find.byType(TextFormField);
+    await tester.enterText(names.at(0), 'Jane');
+    await tester.enterText(names.at(1), 'Doe');
+    await tester.pump();
+    await _tapVisible(tester, find.text('Continue'));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byType(TextFormField).first, 'jane@example.com');
+    await tester.pump();
+    await _tapVisible(tester, find.text('Continue'));
+    await tester.pumpAndSettle();
+    await _enterCode(tester, '123456');
+    await _tapVisible(tester, find.text('Verify'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Create a password'), findsOneWidget);
+    final passwords = find.byType(TextFormField);
+    await tester.enterText(passwords.at(0), 'GoodPass1');
+    await tester.enterText(passwords.at(1), 'GoodPass2');
+    await tester.pump();
+    await _tapVisible(tester, find.text('Continue'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Passwords do not match.'), findsOneWidget);
+    expect(find.text('Create a password'), findsOneWidget);
+  });
+
+  testWidgets('forgot password explains a mismatch or weak password inline', (
+    WidgetTester tester,
+  ) async {
+    final auth = _FakeAuthRepository();
+    await tester.pumpWidget(
+      Insol8App(authRepository: auth, initialRoute: AppRoutes.forgotPassword),
+    );
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byType(TextFormField).first, 'jane@example.com');
+    await tester.pump();
+    await _tapVisible(tester, find.text('Send Code'));
+    await tester.pumpAndSettle();
+    await _enterCode(tester, '123456');
+    await _tapVisible(tester, find.text('Verify'));
+    await tester.pumpAndSettle();
+
+    final fields = find.descendant(
+      of: find.byType(AuthPasswordField),
+      matching: find.byType(TextField),
+    );
+    await tester.enterText(fields.at(0), 'weakpass');
+    await tester.pump();
+    expect(
+      find.text('Include an uppercase letter, a lowercase letter, and a number.'),
+      findsOneWidget,
+    );
+    await tester.enterText(fields.at(0), 'NewPass12');
+    await tester.enterText(fields.at(1), 'NewPass13');
+    await tester.pump();
+    expect(find.text('Passwords do not match.'), findsOneWidget);
+    expect(_isEnabled(tester, 'Set New Password'), isFalse);
+    await tester.enterText(fields.at(1), 'NewPass12');
+    await tester.pump();
+    expect(find.text('Passwords do not match.'), findsNothing);
+    expect(_isEnabled(tester, 'Set New Password'), isTrue);
   });
 }
