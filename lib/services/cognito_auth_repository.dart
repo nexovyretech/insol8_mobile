@@ -66,8 +66,9 @@ class CognitoAuthRepository implements AuthRepository {
     try {
       return (UserProfile.fromJson(await _api.get('/me')), false);
     } on ApiException catch (error) {
-      if (error.statusCode == 404)
+      if (error.statusCode == 404) {
         return (await _createProfileFromAccount(), true);
+      }
       throw _apiFailure(error);
     } on SessionExpiredException {
       throw const AuthFailure(
