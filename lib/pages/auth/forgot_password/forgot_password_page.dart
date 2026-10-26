@@ -74,7 +74,8 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
 
   String get _identifierForAuth {
     final value = _identifierController.text.trim();
-    if (_isEmail) return value;
+    // Emails are stored lowercase; a capitalised entry must find the same account.
+    if (_isEmail) return value.toLowerCase();
     var digits = value.replaceAll(RegExp(r'\D'), '');
     if (digits.startsWith('0')) digits = digits.substring(1);
     return '+63$digits';
@@ -84,8 +85,9 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
       _codeControllers.every((controller) => controller.text.isNotEmpty);
 
   bool get _canSetPassword =>
-      _passwordController.text.length >= 8 &&
-      _passwordController.text == _confirmPasswordController.text;
+      _passwordController.text.isNotEmpty &&
+      _passwordController.text == _confirmPasswordController.text &&
+      _passwordPolicyError == null;
 
   /// Mirrors the Cognito pool policy so most mistakes are caught before
   /// the code is spent.
@@ -98,6 +100,23 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
         !RegExp(r'[a-z]').hasMatch(value) ||
         !RegExp(r'\d').hasMatch(value)) {
       return 'Include an uppercase letter, a lowercase letter, and a number.';
+    }
+    // Cognito rejects these with a generic error, so explain it up front.
+    if (value.trim() != value) {
+      return 'Your password can’t start or end with a space.';
+    }
+    return null;
+  }
+
+  /// Live feedback under the fields, shown once the user starts typing.
+  String? get _newPasswordError {
+    final password = _passwordController.text;
+    final confirm = _confirmPasswordController.text;
+    if (password.isNotEmpty && _passwordPolicyError != null) {
+      return _passwordPolicyError;
+    }
+    if (confirm.isNotEmpty && confirm != password) {
+      return 'Passwords do not match.';
     }
     return null;
   }
@@ -222,7 +241,9 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
         newPassword: _passwordController.text,
       );
       if (!mounted) return;
-      _showMessage('Your password has been updated. Sign in with your new password.');
+      _showMessage(
+        'Your password has been updated. Sign in with your new password.',
+      );
       Navigator.of(context).pop();
     } on AuthFailure catch (error) {
       if (!mounted) return;
@@ -287,6 +308,7 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
       isIdentifierValid: _isIdentifierValid,
       hasCompleteCode: _hasCompleteCode,
       canSetPassword: _canSetPassword,
+      passwordError: _newPasswordError,
       onBack: _goBack,
       onToggleEmail: () => setState(() {
         _isEmail = !_isEmail;

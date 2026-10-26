@@ -48,152 +48,147 @@ class OnboardingBranchSetupStep extends StatelessWidget {
     return OnboardingScaffold(
       showBack: false,
       showGradient: false,
-      child: Column(
-        children: [
-          Row(
-            children: [
-              SizedBox(
-                width: 42,
-                child: IconButton(
-                  onPressed: onBack,
-                  padding: EdgeInsets.zero,
-                  alignment: Alignment.centerLeft,
-                  icon: const Icon(Icons.arrow_back_ios_new, size: 18),
+      // Header and Finish Setup stay pinned; everything between scrolls, so
+      // the button stays visible above the keyboard.
+      child: OnboardingStickyLayout(
+        header: Row(
+          children: [
+            SizedBox(
+              width: 42,
+              child: IconButton(
+                onPressed: onBack,
+                padding: EdgeInsets.zero,
+                alignment: Alignment.centerLeft,
+                icon: const Icon(Icons.arrow_back_ios_new, size: 18),
+                color: AppColors.ink,
+                tooltip: 'Back',
+              ),
+            ),
+            Expanded(
+              child: Text(
+                'Branch Setup',
+                textAlign: TextAlign.center,
+                style: Theme.of(context).textTheme.titleSmall?.copyWith(
                   color: AppColors.ink,
-                  tooltip: 'Back',
-                ),
-              ),
-              Expanded(
-                child: Text(
-                  'Branch Setup',
-                  textAlign: TextAlign.center,
-                  style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                    color: AppColors.ink,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-              ),
-              TextButton(
-                onPressed: onSkip,
-                style: TextButton.styleFrom(
-                  minimumSize: Size.zero,
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 4,
-                    vertical: 8,
-                  ),
-                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                  foregroundColor: AppColors.ink,
-                ),
-                child: const Text('Skip'),
-              ),
-            ],
-          ),
-          const SizedBox(height: 24),
-          Expanded(
-            child: Form(
-              key: formKey,
-              child: SingleChildScrollView(
-                keyboardDismissBehavior:
-                    ScrollViewKeyboardDismissBehavior.onDrag,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    Text(
-                      'Name your first branch',
-                      textAlign: TextAlign.center,
-                      style: Theme.of(context).textTheme.titleLarge
-                          ?.copyWith(fontSize: 22, height: 1.2),
-                    ),
-                    const SizedBox(height: 12),
-                    Text(
-                      'Set your primary laundry shop location so you can assign managers and link your inSOL8 dryers.',
-                      textAlign: TextAlign.center,
-                      style: Theme.of(context).textTheme.bodySmall
-                          ?.copyWith(fontSize: 12, color: AppColors.body),
-                    ),
-                    const SizedBox(height: 22),
-                    const OnboardingSectionLabel('Branch Details'),
-                    const SizedBox(height: 12),
-                    _BranchTextField(
-                      controller: branchNameController,
-                      hint: 'Branch name',
-                      onChanged: onFieldChanged,
-                    ),
-                    const SizedBox(height: 12),
-                    _BranchTextField(
-                      controller: branchAddressController,
-                      hint: 'Store address',
-                      capitalization: TextCapitalization.words,
-                      onChanged: onFieldChanged,
-                    ),
-                    const SizedBox(height: 12),
-                    Text(
-                      'A branch represents a physical shop location. It helps you group drying units, view store-level analytics, and assign on-site managers.',
-                      textAlign: TextAlign.center,
-                      style: Theme.of(context).textTheme.bodySmall
-                          ?.copyWith(fontSize: 12, color: AppColors.fieldHint),
-                    ),
-                    const SizedBox(height: 20),
-                    const OnboardingSectionLabel('Store Manager'),
-                    const SizedBox(height: 12),
-                    _ManagerOptionTile(
-                      title: 'Assign myself as manager',
-                      value: BranchManagerOption.myself,
-                      selected: managerOption == BranchManagerOption.myself,
-                      onTap: () =>
-                          onManagerOptionChanged(BranchManagerOption.myself),
-                    ),
-                    const SizedBox(height: 10),
-                    _ManagerOptionTile(
-                      title: 'Add a new manager',
-                      value: BranchManagerOption.newManager,
-                      selected: managerOption == BranchManagerOption.newManager,
-                      onTap: () => onManagerOptionChanged(
-                        BranchManagerOption.newManager,
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    Text(
-                      'Managers can start cycles, monitor chamber temperatures, and report branch issues.',
-                      textAlign: TextAlign.center,
-                      style: Theme.of(context).textTheme.bodySmall
-                          ?.copyWith(fontSize: 12, color: AppColors.fieldHint),
-                    ),
-                    if (managerOption == BranchManagerOption.newManager) ...[
-                      const SizedBox(height: 14),
-                      const OnboardingSectionLabel('Assign Manager'),
-                      const SizedBox(height: 10),
-                      _BranchTextField(
-                        controller: managerFirstNameController,
-                        hint: 'First name',
-                        capitalization: TextCapitalization.words,
-                        onChanged: onFieldChanged,
-                      ),
-                      const SizedBox(height: 12),
-                      _BranchTextField(
-                        controller: managerLastNameController,
-                        hint: 'Last name',
-                        capitalization: TextCapitalization.words,
-                        onChanged: onFieldChanged,
-                      ),
-                    ],
-                  ],
+                  fontWeight: FontWeight.w700,
                 ),
               ),
             ),
+            TextButton(
+              onPressed: onSkip,
+              style: TextButton.styleFrom(
+                minimumSize: Size.zero,
+                padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                foregroundColor: AppColors.ink,
+              ),
+              child: const Text('Skip'),
+            ),
+          ],
+        ),
+        content: [
+          const SizedBox(height: 24),
+          Form(
+            key: formKey,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Text(
+                  'Name your first branch',
+                  textAlign: TextAlign.center,
+                  style: Theme.of(context).textTheme.titleLarge
+                      ?.copyWith(fontSize: 22, height: 1.2),
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  'Set your primary laundry shop location so you can assign managers and link your inSOL8 dryers.',
+                  textAlign: TextAlign.center,
+                  style: Theme.of(context).textTheme.bodySmall
+                      ?.copyWith(fontSize: 12, color: AppColors.body),
+                ),
+                const SizedBox(height: 22),
+                const OnboardingSectionLabel('Branch Details'),
+                const SizedBox(height: 12),
+                _BranchTextField(
+                  controller: branchNameController,
+                  hint: 'Branch name',
+                  onChanged: onFieldChanged,
+                ),
+                const SizedBox(height: 12),
+                _BranchTextField(
+                  controller: branchAddressController,
+                  hint: 'Store address',
+                  capitalization: TextCapitalization.words,
+                  onChanged: onFieldChanged,
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  'A branch represents a physical shop location. It helps you group drying units, view store-level analytics, and assign on-site managers.',
+                  textAlign: TextAlign.center,
+                  style: Theme.of(context).textTheme.bodySmall
+                      ?.copyWith(fontSize: 12, color: AppColors.fieldHint),
+                ),
+                const SizedBox(height: 20),
+                const OnboardingSectionLabel('Store Manager'),
+                const SizedBox(height: 12),
+                _ManagerOptionTile(
+                  title: 'Assign myself as manager',
+                  value: BranchManagerOption.myself,
+                  selected: managerOption == BranchManagerOption.myself,
+                  onTap: () =>
+                      onManagerOptionChanged(BranchManagerOption.myself),
+                ),
+                const SizedBox(height: 10),
+                _ManagerOptionTile(
+                  title: 'Add a new manager',
+                  value: BranchManagerOption.newManager,
+                  selected: managerOption == BranchManagerOption.newManager,
+                  onTap: () =>
+                      onManagerOptionChanged(BranchManagerOption.newManager),
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  'Managers can start cycles, monitor chamber temperatures, and report branch issues.',
+                  textAlign: TextAlign.center,
+                  style: Theme.of(context).textTheme.bodySmall
+                      ?.copyWith(fontSize: 12, color: AppColors.fieldHint),
+                ),
+                if (managerOption == BranchManagerOption.newManager) ...[
+                  const SizedBox(height: 14),
+                  const OnboardingSectionLabel('Assign Manager'),
+                  const SizedBox(height: 10),
+                  _BranchTextField(
+                    controller: managerFirstNameController,
+                    hint: 'First name',
+                    capitalization: TextCapitalization.words,
+                    onChanged: onFieldChanged,
+                  ),
+                  const SizedBox(height: 12),
+                  _BranchTextField(
+                    controller: managerLastNameController,
+                    hint: 'Last name',
+                    capitalization: TextCapitalization.words,
+                    onChanged: onFieldChanged,
+                  ),
+                ],
+                const SizedBox(height: 16),
+                Text(
+                  'You can add more branches, change addresses, or reassign store managers anytime in your Account Settings.',
+                  textAlign: TextAlign.center,
+                  style: Theme.of(context).textTheme.bodySmall
+                      ?.copyWith(fontSize: 12, color: AppColors.fieldHint),
+                ),
+                const SizedBox(height: 8),
+              ],
+            ),
           ),
-          const SizedBox(height: 12),
+        ],
+        actions: [
           OnboardingGradientButton(
             label: isSaving ? 'Saving…' : 'Finish Setup',
             onPressed: canFinish && !isSaving ? onFinish : null,
           ),
-          const SizedBox(height: 8),
-          Text(
-            'You can add more branches, change addresses, or reassign store managers anytime in your Account Settings.',
-            textAlign: TextAlign.center,
-            style: Theme.of(context).textTheme.bodySmall
-                ?.copyWith(fontSize: 12, color: AppColors.fieldHint),
-          ),
+          const SizedBox(height: 4),
         ],
       ),
     );

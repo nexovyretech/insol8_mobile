@@ -27,6 +27,7 @@ class ForgotPasswordView extends StatelessWidget {
     required this.isIdentifierValid,
     required this.hasCompleteCode,
     required this.canSetPassword,
+    this.passwordError,
     required this.onBack,
     required this.onToggleEmail,
     required this.onCodeChanged,
@@ -54,6 +55,9 @@ class ForgotPasswordView extends StatelessWidget {
   final bool isIdentifierValid;
   final bool hasCompleteCode;
   final bool canSetPassword;
+
+  /// Shown under the new-password fields, e.g. "Passwords do not match."
+  final String? passwordError;
   final VoidCallback onBack;
   final VoidCallback onToggleEmail;
   final void Function(int index, String value) onCodeChanged;
@@ -146,6 +150,14 @@ class ForgotPasswordView extends StatelessWidget {
                         visible: confirmPasswordVisible,
                         onToggleVisibility: onToggleConfirmPasswordVisibility,
                       ),
+                      if (passwordError != null) ...[
+                        const SizedBox(height: 8),
+                        Text(
+                          passwordError!,
+                          style: Theme.of(context).textTheme.bodyMedium
+                              ?.copyWith(fontSize: 12, color: AppColors.error),
+                        ),
+                      ],
                     ] else ...[
                       if (isEmail)
                         AuthTextField(

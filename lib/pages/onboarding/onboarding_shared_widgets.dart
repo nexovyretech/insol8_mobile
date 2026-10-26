@@ -98,28 +98,94 @@ class OnboardingTrustNote extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Shrink-wraps, and lets the text wrap, so two notes fit side by side on
+    // narrow phones instead of overflowing to the right.
     return Row(
+      mainAxisSize: MainAxisSize.min,
       children: [
         Icon(icon, size: 14, color: AppColors.primary),
         const SizedBox(width: 4),
-        Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              title,
-              style: Theme.of(context).textTheme.bodySmall
-                  ?.copyWith(fontSize: 12),
-            ),
-            Text(
-              subtitle,
-              style: Theme.of(context).textTheme.bodySmall
-                  ?.copyWith(fontSize: 12),
-            ),
-          ],
+        Flexible(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                title,
+                style: Theme.of(context).textTheme.bodySmall
+                    ?.copyWith(fontSize: 12),
+              ),
+              Text(
+                subtitle,
+                style: Theme.of(context).textTheme.bodySmall
+                    ?.copyWith(fontSize: 12),
+              ),
+            ],
+          ),
         ),
       ],
     );
   }
+}
+
+/// Scrollable content with the action buttons pinned to the bottom, so the
+/// main button is always on screen however tall the content is (small
+/// phones, larger text, or an open keyboard). On tall screens it looks like
+/// a Spacer layout: content at the top (or centred) and actions at the bottom.
+class OnboardingStickyLayout extends StatelessWidget {
+  const OnboardingStickyLayout({
+    super.key,
+    this.header,
+    required this.content,
+    required this.actions,
+    this.centerContent = false,
+    this.fillViewport = false,
+    this.crossAxisAlignment = CrossAxisAlignment.stretch,
+  });
+
+  /// Stays fixed above the scrolling content (e.g. a back/skip bar).
+  final Widget? header;
+  final List<Widget> content;
+  final List<Widget> actions;
+  final bool centerContent;
+
+  /// Lets [content] use Expanded/Spacer to fill spare height on tall screens
+  /// while still scrolling on short ones.
+  final bool fillViewport;
+  final CrossAxisAlignment crossAxisAlignment;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        ?header,
+        Expanded(
+          child: LayoutBuilder(
+            builder: (context, constraints) => SingleChildScrollView(
+              keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+              child: ConstrainedBox(
+                constraints: BoxConstraints(minHeight: constraints.maxHeight),
+                child: _wrap(
+                  Column(
+                    mainAxisAlignment: centerContent
+                        ? MainAxisAlignment.center
+                        : MainAxisAlignment.start,
+                    crossAxisAlignment: crossAxisAlignment,
+                    children: content,
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(height: 12),
+        ...actions,
+      ],
+    );
+  }
+
+  Widget _wrap(Widget column) =>
+      fillViewport ? IntrinsicHeight(child: column) : column;
 }
 
 class OnboardingSectionLabel extends StatelessWidget {

@@ -27,6 +27,7 @@ class _LoginPageState extends State<LoginPage> {
   bool _rememberMe = false;
   bool _passwordVisible = false;
   bool _isSubmitting = false;
+  bool _isGoogleSubmitting = false;
 
   @override
   void initState() {
@@ -56,13 +57,13 @@ class _LoginPageState extends State<LoginPage> {
 
     setState(() => _isSubmitting = true);
     try {
-      await widget.authRepository.signIn(
+      final landing = await widget.authRepository.signIn(
         identifier: _identifierController.text.trim(),
         password: _passwordController.text,
         rememberMe: _rememberMe,
       );
       if (!mounted) return;
-      _goHome();
+      _goTo(landing);
     } on AuthFailure catch (error) {
       if (!mounted) return;
       _showMessage(error.message);
@@ -84,10 +85,13 @@ class _LoginPageState extends State<LoginPage> {
   }
 
   Future<void> _signInWithGoogle() async {
+    // A second tap while the browser is open would start a second sign-in.
+    if (_isGoogleSubmitting || _isSubmitting) return;
+    _isGoogleSubmitting = true;
     try {
-      await widget.authRepository.signInWithGoogle();
+      final landing = await widget.authRepository.signInWithGoogle();
       if (!mounted) return;
-      _goHome();
+      _goTo(landing);
     } on AuthFailure catch (error) {
       if (!mounted) return;
       _showMessage(error.message);
@@ -97,11 +101,18 @@ class _LoginPageState extends State<LoginPage> {
     } catch (_) {
       if (!mounted) return;
       _showMessage('Google sign in failed. Please try again.');
+    } finally {
+      _isGoogleSubmitting = false;
     }
   }
 
-  void _goHome() {
-    Navigator.of(context).pushNamedAndRemoveUntil(AppRoutes.home, (_) => false);
+  /// New accounts (first Google sign-in) go through onboarding; existing
+  /// accounts go straight to the dashboard. Auth screens are cleared either way.
+  void _goTo(AuthLanding landing) {
+    Navigator.of(context).pushNamedAndRemoveUntil(
+      landing == AuthLanding.onboarding ? AppRoutes.onboarding : AppRoutes.home,
+      (_) => false,
+    );
   }
 
   void _showMessage(String message) {

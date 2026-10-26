@@ -152,8 +152,7 @@ class SignUpPasswordStep extends StatelessWidget {
       children: [
         const SignUpStepHeading(
           title: 'Create a password',
-          description:
-              'Use at least 8 characters with an uppercase\nletter, a lowercase letter, and a number.',
+          description: 'Use at least 8 characters with an uppercase\nletter, a lowercase letter, and a number.',
         ),
         const SizedBox(height: 28),
         AuthPasswordField(
@@ -336,9 +335,8 @@ class SignUpVerificationStep extends StatelessWidget {
                 foregroundColor: AppColors.primary,
                 // Theme-derived like the contact step's link, so the switch
                 // between steps can animate the style without an assertion.
-                textStyle: Theme.of(
-                  context,
-                ).textTheme.bodyMedium?.copyWith(fontSize: 12),
+                textStyle: Theme.of(context).textTheme.bodyMedium
+                    ?.copyWith(fontSize: 12),
               ),
               child: const Text('Resend it'),
             ),

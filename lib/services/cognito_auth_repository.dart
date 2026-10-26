@@ -47,20 +47,33 @@ class CognitoAuthRepository implements AuthRepository {
       return false;
     } on SignedOutException {
       return false;
+    } on NetworkException {
+      // Offline at launch with a stored session: keep the user signed in;
+      // the home screen shows a retry until the connection is back.
+      return true;
     } on AuthException {
       return false;
     }
   }
 
   @override
-  Future<UserProfile> loadProfile() async {
+  Future<UserProfile> loadProfile() async => (await _loadOrCreateProfile()).$1;
+
+  /// Returns the profile and whether it was created just now, which marks a
+  /// brand-new account (email sign-up finished elsewhere, or first Google
+  /// sign-in) that still needs onboarding.
+  Future<(UserProfile, bool)> _loadOrCreateProfile() async {
     try {
-      return UserProfile.fromJson(await _api.get('/me'));
+      return (UserProfile.fromJson(await _api.get('/me')), false);
     } on ApiException catch (error) {
-      if (error.statusCode == 404) return _createProfileFromAccount();
+      if (error.statusCode == 404) {
+        return (await _createProfileFromAccount(), true);
+      }
       throw _apiFailure(error);
     } on SessionExpiredException {
-      throw const AuthFailure('Your session has expired. Please sign in again.');
+      throw const AuthFailure(
+        'Your session has expired. Please sign in again.',
+      );
     } on SignedOutException {
       throw const AuthFailure('Please sign in again.');
     } on AuthException catch (error) {
@@ -82,17 +95,23 @@ class CognitoAuthRepository implements AuthRepository {
     final idToken = session.userPoolTokensResult.value.idToken;
     final email = idToken.email;
     final fullName = (idToken.name ?? '').trim().split(RegExp(r'\s+'));
-    var firstName = idToken.givenName ??
+    var firstName =
+        idToken.givenName ??
         (fullName.first.isNotEmpty ? fullName.first : null);
-    var lastName = idToken.familyName ??
+    var lastName =
+        idToken.familyName ??
         (fullName.length > 1 ? fullName.skip(1).join(' ') : null);
     firstName ??= email?.split('@').first ?? 'inSOL8';
     lastName ??= 'User';
+    // The API caps names at 120 characters; a long Google name must not
+    // block sign-in.
+    String clamp(String value) =>
+        value.length > 120 ? value.substring(0, 120) : value;
     try {
       return UserProfile.fromJson(
         await _api.post('/me', {
-          'firstName': firstName,
-          'lastName': lastName,
+          'firstName': clamp(firstName),
+          'lastName': clamp(lastName),
           'email': ?email,
         }),
       );
@@ -126,18 +145,23 @@ class CognitoAuthRepository implements AuthRepository {
         'Signing up with a mobile number isn’t available yet. Please use your email address.',
       );
     }
+    // One spelling per address, so "Juan@Mail.com" can't become a second
+    // account next to "juan@mail.com" (the backend trigger checks both).
+    final email = contact.trim().toLowerCase();
     final pending = _pending;
-    if (pending != null && pending.email == contact && !pending.confirmed) {
+    if (pending != null && pending.email == email && !pending.confirmed) {
       // Same email as an unfinished attempt: resend instead of creating
       // another unconfirmed account.
-      await _guard(() => Amplify.Auth.resendSignUpCode(username: pending.username));
+      await _guard(
+        () => Amplify.Auth.resendSignUpCode(username: pending.username),
+      );
       return;
     }
     await _signOutIfSignedIn();
     final next = _PendingSignUp(
       username: _randomId(),
       oneTimePassword: _randomPassword(),
-      email: contact,
+      email: email,
     );
     await _guard(
       () => Amplify.Auth.signUp(
@@ -145,7 +169,7 @@ class CognitoAuthRepository implements AuthRepository {
         password: next.oneTimePassword,
         options: SignUpOptions(
           userAttributes: {
-            AuthUserAttributeKey.email: contact,
+            AuthUserAttributeKey.email: email,
             AuthUserAttributeKey.givenName: ?firstName,
             AuthUserAttributeKey.familyName: ?lastName,
           },
@@ -161,7 +185,9 @@ class CognitoAuthRepository implements AuthRepository {
     required SignUpContactMethod method,
   }) async {
     final pending = _requirePending();
-    await _guard(() => Amplify.Auth.resendSignUpCode(username: pending.username));
+    await _guard(
+      () => Amplify.Auth.resendSignUpCode(username: pending.username),
+    );
   }
 
   @override
@@ -187,7 +213,9 @@ class CognitoAuthRepository implements AuthRepository {
       ),
     );
     if (!result.isSignedIn) {
-      throw const AuthFailure('Your email is verified. Please sign in to continue.');
+      throw const AuthFailure(
+        'Your email is verified. Please sign in to continue.',
+      );
     }
   }
 
@@ -195,10 +223,16 @@ class CognitoAuthRepository implements AuthRepository {
   Future<void> beginSignUp(SignUpData data) async {
     final pending = _requirePending();
     if (!pending.confirmed) {
-      throw const AuthFailure('Verify your email before creating your account.');
+      throw const AuthFailure(
+        'Verify your email before creating your account.',
+      );
     }
-    if (!await isUsernameAvailable(data.username)) {
-      throw const AuthFailure('That username is already taken. Try another one.');
+    // Usernames are unique regardless of case; the API stores them lowercase.
+    final username = data.username.trim().toLowerCase();
+    if (!await isUsernameAvailable(username)) {
+      throw const AuthFailure(
+        'That username is already taken. Try another one.',
+      );
     }
     if (!pending.passwordSet) {
       await _guard(
@@ -213,12 +247,14 @@ class CognitoAuthRepository implements AuthRepository {
       await _api.post('/me', {
         'firstName': data.firstName,
         'lastName': data.lastName,
-        'email': data.contact,
-        'username': data.username,
+        'email': pending.email,
+        'username': username,
       });
     } on ApiException catch (error) {
       if (error.statusCode == 409) {
-        throw const AuthFailure('That username is already taken. Try another one.');
+        throw const AuthFailure(
+          'That username is already taken. Try another one.',
+        );
       }
       throw _apiFailure(error);
     }
@@ -226,7 +262,7 @@ class CognitoAuthRepository implements AuthRepository {
   }
 
   @override
-  Future<void> signIn({
+  Future<AuthLanding> signIn({
     required String identifier,
     required String password,
     required bool rememberMe,
@@ -238,7 +274,7 @@ class CognitoAuthRepository implements AuthRepository {
     );
     switch (result.nextStep.signInStep) {
       case AuthSignInStep.done:
-        await loadProfile();
+        return _landingAfterSignIn();
       case AuthSignInStep.confirmSignUp:
         throw const AuthFailure(
           'This account hasn’t been verified. Please sign up again with the same email to get a new code.',
@@ -252,6 +288,14 @@ class CognitoAuthRepository implements AuthRepository {
     }
   }
 
+  /// A profile created during this sign-in means the account is new (first
+  /// Google sign-in, or an email sign-up that was interrupted), so it still
+  /// needs onboarding; an existing profile goes straight to the dashboard.
+  Future<AuthLanding> _landingAfterSignIn() async {
+    final (_, created) = await _loadOrCreateProfile();
+    return created ? AuthLanding.onboarding : AuthLanding.home;
+  }
+
   /// Emails and phone numbers are Cognito aliases; app usernames live in Neon
   /// and are resolved to the Cognito username by the API.
   Future<String> _signInNameFor(String identifier) async {
@@ -260,11 +304,9 @@ class CognitoAuthRepository implements AuthRepository {
     final phone = _normalizePhilippineMobile(value);
     if (phone != null) return phone;
     try {
-      final data = await _api.post(
-        '/auth/resolve-sign-in',
-        {'identifier': value},
-        authenticated: false,
-      );
+      final data = await _api.post('/auth/resolve-sign-in', {
+        'identifier': value,
+      }, authenticated: false);
       return data['signInName'] as String? ?? value;
     } on ApiException catch (error) {
       throw _apiFailure(error);
@@ -277,16 +319,21 @@ class CognitoAuthRepository implements AuthRepository {
     await Amplify.Auth.signOut();
   }
 
+  /// Reset identifiers are emails, stored lowercase.
+  static String _resetEmail(String identifier) =>
+      identifier.trim().toLowerCase();
+
   @override
   Future<void> requestPasswordReset({required String identifier}) async {
-    if (!_emailPattern.hasMatch(identifier)) {
+    final email = _resetEmail(identifier);
+    if (!_emailPattern.hasMatch(email)) {
       throw const AuthFailure(
         'Password reset by mobile number isn’t available yet. Use the email on your account.',
       );
     }
     // With user-existence errors prevented, Cognito responds the same way for
     // unknown emails, so the UI never reveals whether an account exists.
-    await _guard(() => Amplify.Auth.resetPassword(username: identifier));
+    await _guard(() => Amplify.Auth.resetPassword(username: email));
   }
 
   @override
@@ -312,7 +359,7 @@ class CognitoAuthRepository implements AuthRepository {
     }
     try {
       await Amplify.Auth.confirmResetPassword(
-        username: identifier,
+        username: _resetEmail(identifier),
         newPassword: _unacceptablePassword(),
         confirmationCode: code,
       );
@@ -348,7 +395,7 @@ class CognitoAuthRepository implements AuthRepository {
   }) async {
     await _guard(
       () => Amplify.Auth.confirmResetPassword(
-        username: identifier,
+        username: _resetEmail(identifier),
         newPassword: newPassword,
         confirmationCode: code,
       ),
@@ -356,7 +403,7 @@ class CognitoAuthRepository implements AuthRepository {
   }
 
   @override
-  Future<void> signInWithGoogle() async {
+  Future<AuthLanding> signInWithGoogle() async {
     await _signOutIfSignedIn();
     final SignInResult result;
     try {
@@ -376,7 +423,8 @@ class CognitoAuthRepository implements AuthRepository {
     if (!result.isSignedIn) {
       throw const AuthFailure('Google sign in was not completed.');
     }
-    await loadProfile();
+    // First Google sign-in creates the account and profile: onboarding.
+    return _landingAfterSignIn();
   }
 
   _PendingSignUp _requirePending() =>
@@ -406,20 +454,19 @@ class CognitoAuthRepository implements AuthRepository {
   }
 
   static String _messageFor(AuthException error) => switch (error) {
-    NotAuthorizedServiceException() => 'Incorrect username, email, or password.',
+    NotAuthorizedServiceException() =>
+      'Incorrect username, email, or password.',
     UserNotFoundException() => 'Incorrect username, email, or password.',
-    UserNotConfirmedException() =>
-      'This account hasn’t been verified yet. Please sign up again with the same email.',
+    UserNotConfirmedException() => 'This account hasn’t been verified yet. Please sign up again with the same email.',
     PasswordResetRequiredException() =>
       'You need to reset your password. Use “Forgot password” to continue.',
-    CodeMismatchException() => 'That code is incorrect. Check it and try again.',
+    CodeMismatchException() =>
+      'That code is incorrect. Check it and try again.',
     ExpiredCodeException() => 'That code has expired. Request a new one.',
-    AliasExistsException() =>
-      'An account with this email already exists. Sign in or reset your password.',
+    AliasExistsException() => 'An account with this email already exists. Sign in or reset your password.',
     UsernameExistsException() =>
       'An account with these details already exists. Sign in instead.',
-    InvalidPasswordException() =>
-      'Use at least 8 characters with an uppercase letter, a lowercase letter, and a number.',
+    InvalidPasswordException() => 'Use at least 8 characters with an uppercase letter, a lowercase letter, and a number.',
     CodeDeliveryFailureException() =>
       'We couldn’t deliver the code. Check the address and try again.',
     LimitExceededException() ||
@@ -428,16 +475,23 @@ class CognitoAuthRepository implements AuthRepository {
       'Too many attempts. Please wait a few minutes and try again.',
     NetworkException() => 'Check your internet connection and try again.',
     UserCancelledException() => 'Sign in was cancelled.',
+    // Raised by the backend Pre sign-up trigger (signup-guard-service.js) for
+    // both email sign-up and Google sign-in.
+    LambdaException(:final message)
+        when message.contains('EMAIL_IN_USE_GOOGLE') =>
+      'This email is registered with Google. Use “Continue with Google” to sign in.',
+    LambdaException(:final message) when message.contains('EMAIL_IN_USE') => 'An account with this email already exists. Sign in with your email and password, or reset your password.',
     _ => 'Something went wrong. Please try again.',
   };
 
-  static AuthFailure _apiFailure(ApiException error) => AuthFailure(
-    error.statusCode == 0
-        ? error.message
-        : error.statusCode == 401
-        ? 'Your session has expired. Please sign in again.'
-        : 'We couldn’t reach inSOL8 right now. Please try again.',
-  );
+  static AuthFailure _apiFailure(ApiException error) =>
+      AuthFailure(switch (error.statusCode) {
+        0 => error.message,
+        401 => 'Your session has expired. Please sign in again.',
+        400 => 'Some of your details aren’t valid. Check them and try again.',
+        409 => 'That username is already taken. Try another one.',
+        _ => 'We couldn’t reach inSOL8 right now. Please try again.',
+      });
 
   static String? _normalizePhilippineMobile(String value) {
     final digits = value.replaceAll(RegExp(r'[\s()-]'), '');
@@ -456,8 +510,7 @@ class CognitoAuthRepository implements AuthRepository {
 
   /// Satisfies the pool policy (upper, lower, digit, ≥ 8); never persisted.
   static String _randomPassword() {
-    const chars =
-        'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789';
+    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789';
     final body = List.generate(
       28,
       (_) => chars[_random.nextInt(chars.length)],

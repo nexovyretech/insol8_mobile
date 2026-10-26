@@ -205,10 +205,13 @@ class OnboardingVerifyDeviceStep extends StatelessWidget {
       showBack: false,
       showGradient: false,
       headerSlotHeight: 0,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          _SetupHeader(title: 'Connect Dryer', onBack: onBack, onSkip: onSkip),
+      child: OnboardingStickyLayout(
+        header: _SetupHeader(
+          title: 'Connect Dryer',
+          onBack: onBack,
+          onSkip: onSkip,
+        ),
+        content: [
           const SizedBox(height: 24),
           Text(
             'Verify Device ID',
@@ -237,7 +240,8 @@ class OnboardingVerifyDeviceStep extends StatelessWidget {
               style: const TextStyle(color: AppColors.error, fontSize: 13),
             ),
           ],
-          const Spacer(),
+        ],
+        actions: [
           OnboardingGradientButton(label: 'Verify Device', onPressed: onVerify),
           const SizedBox(height: 4),
         ],
@@ -274,9 +278,13 @@ class OnboardingDeviceSetupStep extends StatelessWidget {
       showBack: false,
       showGradient: false,
       headerSlotHeight: 0,
-      child: Column(
-        children: [
-          _SetupHeader(title: 'Device Details', onBack: onBack, onSkip: onSkip),
+      child: OnboardingStickyLayout(
+        header: _SetupHeader(
+          title: 'Device Details',
+          onBack: onBack,
+          onSkip: onSkip,
+        ),
+        content: [
           const SizedBox(height: 24),
           Text(
             deviceCode,
@@ -306,7 +314,8 @@ class OnboardingDeviceSetupStep extends StatelessWidget {
               style: const TextStyle(color: AppColors.error, fontSize: 13),
             ),
           ],
-          const Spacer(),
+        ],
+        actions: [
           OnboardingGradientButton(
             label: 'Complete Registration',
             onPressed: deviceNameController.text.trim().isEmpty

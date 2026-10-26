@@ -206,9 +206,8 @@ class _SignUpScreenState extends State<SignUpScreen> {
       );
       // The user is now signed in, so the auth screens are cleared from the
       // stack; onboarding finishes on the home screen.
-      Navigator.of(
-        context,
-      ).pushNamedAndRemoveUntil(AppRoutes.onboarding, (_) => false);
+      Navigator.of(context)
+          .pushNamedAndRemoveUntil(AppRoutes.onboarding, (_) => false);
     } on AuthFailure catch (error) {
       _setSubmitError(error.message);
     } on AuthNotConfiguredException {
@@ -508,10 +507,16 @@ class _SignUpScreenState extends State<SignUpScreen> {
                 !RegExp(r'\d').hasMatch(value)) {
               return 'Include an uppercase letter, a lowercase letter, and a number.';
             }
+            // Cognito rejects these with a generic error, so explain it here.
+            if (value.trim() != value) {
+              return 'Your password can’t start or end with a space.';
+            }
             return null;
           },
-          validateConfirmPassword: (value) =>
-              value != _password.text ? 'Passwords do not match.' : null,
+          validateConfirmPassword: (value) {
+            if (value == null || value.isEmpty) return 'Confirm your password.';
+            return value != _password.text ? 'Passwords do not match.' : null;
+          },
         );
       case 4:
         return SignUpUsernameStep(
@@ -537,6 +542,8 @@ class _SignUpScreenState extends State<SignUpScreen> {
   String? _requiredName(String? value, String label) {
     if (value == null || value.trim().isEmpty) return 'Enter your $label.';
     if (value.trim().length < 2) return 'Enter at least 2 characters.';
+    // The profile API accepts up to 120; keep names to a sensible length.
+    if (value.trim().length > 50) return 'Use 50 characters or fewer.';
     return null;
   }
 

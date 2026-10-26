@@ -37,7 +37,9 @@ abstract interface class AuthRepository {
     required SignUpContactMethod method,
   });
 
-  Future<void> signIn({
+  /// Returns where the user should go: onboarding for an account that has
+  /// no profile yet (first sign-in), home for an existing account.
+  Future<AuthLanding> signIn({
     required String identifier,
     required String password,
     required bool rememberMe,
@@ -60,7 +62,17 @@ abstract interface class AuthRepository {
     required String newPassword,
   });
 
-  Future<void> signInWithGoogle();
+  /// Signs in or signs up with Google; same landing rule as [signIn].
+  Future<AuthLanding> signInWithGoogle();
+}
+
+/// Where to send a user after they sign in.
+enum AuthLanding {
+  /// New account (its profile was just created): run onboarding first.
+  onboarding,
+
+  /// Existing account: go straight to the dashboard.
+  home,
 }
 
 /// A failure whose [message] is safe and useful to show to the user.
@@ -121,11 +133,11 @@ class UnconfiguredAuthRepository implements AuthRepository {
   }) => Future<void>.error(const AuthNotConfiguredException());
 
   @override
-  Future<void> signIn({
+  Future<AuthLanding> signIn({
     required String identifier,
     required String password,
     required bool rememberMe,
-  }) => Future<void>.error(const AuthNotConfiguredException());
+  }) => Future<AuthLanding>.error(const AuthNotConfiguredException());
 
   @override
   Future<void> signOut() async {}
@@ -152,8 +164,8 @@ class UnconfiguredAuthRepository implements AuthRepository {
   }) => Future<void>.error(const AuthNotConfiguredException());
 
   @override
-  Future<void> signInWithGoogle() =>
-      Future<void>.error(const AuthNotConfiguredException());
+  Future<AuthLanding> signInWithGoogle() =>
+      Future<AuthLanding>.error(const AuthNotConfiguredException());
 }
 
 class AuthNotConfiguredException implements Exception {

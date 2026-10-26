@@ -30,9 +30,8 @@ class OnboardingSubscriptionStep extends StatelessWidget {
     return OnboardingScaffold(
       showBack: true,
       onBack: onBack,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
+      child: OnboardingStickyLayout(
+        content: [
           const SizedBox(height: 16),
           Text(
             'Turning sunlight into\nsavings',
@@ -65,7 +64,9 @@ class OnboardingSubscriptionStep extends StatelessWidget {
               height: 1.3,
             ),
           ),
-          const Spacer(),
+          const SizedBox(height: 8),
+        ],
+        actions: [
           OnboardingGradientButton(
             label: 'Get Subscription',
             onPressed: onContinue,
