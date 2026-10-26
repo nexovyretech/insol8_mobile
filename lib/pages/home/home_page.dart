@@ -63,9 +63,8 @@ class _HomePageState extends State<HomePage> {
 
   void _leave() {
     if (!mounted) return;
-    Navigator.of(
-      context,
-    ).pushNamedAndRemoveUntil(AppRoutes.getStarted, (_) => false);
+    Navigator.of(context)
+        .pushNamedAndRemoveUntil(AppRoutes.getStarted, (_) => false);
   }
 
   @override

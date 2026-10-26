@@ -206,9 +206,8 @@ class _SignUpScreenState extends State<SignUpScreen> {
       );
       // The user is now signed in, so the auth screens are cleared from the
       // stack; onboarding finishes on the home screen.
-      Navigator.of(
-        context,
-      ).pushNamedAndRemoveUntil(AppRoutes.onboarding, (_) => false);
+      Navigator.of(context)
+          .pushNamedAndRemoveUntil(AppRoutes.onboarding, (_) => false);
     } on AuthFailure catch (error) {
       _setSubmitError(error.message);
     } on AuthNotConfiguredException {

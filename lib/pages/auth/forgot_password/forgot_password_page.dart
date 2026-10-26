@@ -241,7 +241,9 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
         newPassword: _passwordController.text,
       );
       if (!mounted) return;
-      _showMessage('Your password has been updated. Sign in with your new password.');
+      _showMessage(
+        'Your password has been updated. Sign in with your new password.',
+      );
       Navigator.of(context).pop();
     } on AuthFailure catch (error) {
       if (!mounted) return;

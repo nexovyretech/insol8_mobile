@@ -56,24 +56,39 @@ class ApiClient {
         await _client.send(request).timeout(ApiSettings.requestTimeout),
       ).timeout(ApiSettings.requestTimeout);
     } on TimeoutException {
-      throw const ApiException(0, 'TIMEOUT', 'The server took too long to respond.');
+      throw const ApiException(
+        0,
+        'TIMEOUT',
+        'The server took too long to respond.',
+      );
     } on http.ClientException {
-      throw const ApiException(0, 'NETWORK', 'Check your internet connection and try again.');
+      throw const ApiException(
+        0,
+        'NETWORK',
+        'Check your internet connection and try again.',
+      );
     }
 
     final Map<String, dynamic> json;
     try {
       json = jsonDecode(response.body) as Map<String, dynamic>;
     } on FormatException {
-      throw ApiException(response.statusCode, 'BAD_RESPONSE', 'Unexpected server response.');
+      throw ApiException(
+        response.statusCode,
+        'BAD_RESPONSE',
+        'Unexpected server response.',
+      );
     }
-    if (response.statusCode >= 200 && response.statusCode < 300 && json['success'] == true) {
+    if (response.statusCode >= 200 &&
+        response.statusCode < 300 &&
+        json['success'] == true) {
       return (json['data'] as Map<String, dynamic>?) ?? const {};
     }
     final error = json['error'] as Map<String, dynamic>?;
     throw ApiException(
       response.statusCode,
-      error?['code'] as String? ?? (response.statusCode == 401 ? 'UNAUTHORIZED' : 'ERROR'),
+      error?['code'] as String? ??
+          (response.statusCode == 401 ? 'UNAUTHORIZED' : 'ERROR'),
       error?['message'] as String? ?? 'Request failed.',
     );
   }

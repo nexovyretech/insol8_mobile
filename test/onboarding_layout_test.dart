@@ -29,8 +29,7 @@ final Map<String, (Widget Function(), String)> _screens = {
   'welcome': (
     () => const OnboardingWelcomeStep(
       title: 'Welcome to inSOL8',
-      description:
-          'Manage your solar-thermal dryers, branches and devices in one place.',
+      description: 'Manage your solar-thermal dryers, branches and devices in one place.',
       pageIndex: 0,
       buttonLabel: 'Get Started',
       onContinue: _noop,

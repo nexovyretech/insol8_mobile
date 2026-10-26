@@ -43,11 +43,13 @@ void main() {
           password: 'Wrong-Password-1',
           rememberMe: true,
         ),
-        throwsA(isA<AuthFailure>().having(
-          (e) => e.message,
-          'message',
-          'Incorrect username, email, or password.',
-        )),
+        throwsA(
+          isA<AuthFailure>().having(
+            (e) => e.message,
+            'message',
+            'Incorrect username, email, or password.',
+          ),
+        ),
       );
       expect(await auth.hasActiveSession(), isFalse);
     });
@@ -69,49 +71,72 @@ void main() {
       await expectLater(auth.loadProfile(), throwsA(isA<AuthFailure>()));
     });
 
-    test('app-username sign-in resolves through the API, ignoring case', () async {
-      final landing = await auth.signIn(
-        identifier: _need('QA_APP_USERNAME').toUpperCase(),
-        password: _need('QA_PASSWORD'),
-        rememberMe: true,
-      );
-      expect(landing, AuthLanding.home);
-      expect((await auth.loadProfile()).username, _need('QA_APP_USERNAME'));
-      await auth.signOut();
-    });
+    test(
+      'app-username sign-in resolves through the API, ignoring case',
+      () async {
+        final landing = await auth.signIn(
+          identifier: _need('QA_APP_USERNAME').toUpperCase(),
+          password: _need('QA_PASSWORD'),
+          rememberMe: true,
+        );
+        expect(landing, AuthLanding.home);
+        expect((await auth.loadProfile()).username, _need('QA_APP_USERNAME'));
+        await auth.signOut();
+      },
+    );
 
-    test('password change API works for a signed-in user (used by sign-up)', () async {
-      final original = _need('QA_PASSWORD');
-      const temporary = 'Changed-Pass-9';
-      await auth.signIn(identifier: _need('QA_EMAIL'), password: original, rememberMe: true);
-      await Amplify.Auth.updatePassword(oldPassword: original, newPassword: temporary);
-      await auth.signOut();
-      await auth.signIn(identifier: _need('QA_EMAIL'), password: temporary, rememberMe: true);
-      await Amplify.Auth.updatePassword(oldPassword: temporary, newPassword: original);
-      await auth.signOut();
-    });
+    test(
+      'password change API works for a signed-in user (used by sign-up)',
+      () async {
+        final original = _need('QA_PASSWORD');
+        const temporary = 'Changed-Pass-9';
+        await auth.signIn(
+          identifier: _need('QA_EMAIL'),
+          password: original,
+          rememberMe: true,
+        );
+        await Amplify.Auth.updatePassword(
+          oldPassword: original,
+          newPassword: temporary,
+        );
+        await auth.signOut();
+        await auth.signIn(
+          identifier: _need('QA_EMAIL'),
+          password: temporary,
+          rememberMe: true,
+        );
+        await Amplify.Auth.updatePassword(
+          oldPassword: temporary,
+          newPassword: original,
+        );
+        await auth.signOut();
+      },
+    );
 
-    test('a brand-new account lands on onboarding once, then on the dashboard', () async {
-      final first = await auth.signIn(
-        identifier: _need('QA3_EMAIL'),
-        password: _need('QA3_PASSWORD'),
-        rememberMe: true,
-      );
-      expect(first, AuthLanding.onboarding);
-      final profile = await auth.loadProfile();
-      expect(profile.firstName, 'New');
-      expect(profile.lastName, 'Account');
-      expect(profile.username, matches(RegExp(r'^newaccount\d{4}$')));
-      await auth.signOut();
+    test(
+      'a brand-new account lands on onboarding once, then on the dashboard',
+      () async {
+        final first = await auth.signIn(
+          identifier: _need('QA3_EMAIL'),
+          password: _need('QA3_PASSWORD'),
+          rememberMe: true,
+        );
+        expect(first, AuthLanding.onboarding);
+        final profile = await auth.loadProfile();
+        expect(profile.firstName, 'New');
+        expect(profile.lastName, 'Account');
+        expect(profile.username, matches(RegExp(r'^newaccount\d{4}$')));
+        await auth.signOut();
 
-      final second = await auth.signIn(
-        identifier: _need('QA3_EMAIL'),
-        password: _need('QA3_PASSWORD'),
-        rememberMe: true,
-      );
-      expect(second, AuthLanding.home);
-      await auth.signOut();
-    });
+        final second = await auth.signIn(
+          identifier: _need('QA3_EMAIL'),
+          password: _need('QA3_PASSWORD'),
+          rememberMe: true,
+        );
+        expect(second, AuthLanding.home);
+        await auth.signOut();
+      },
+    );
 
     test('sign-up with an email that already has an account is refused before any code', () async {
       await expectLater(
@@ -121,17 +146,24 @@ void main() {
           firstName: 'Dup',
           lastName: 'Licate',
         ),
-        throwsA(isA<AuthFailure>().having(
-          (e) => e.message,
-          'message',
-          contains('An account with this email already exists'),
-        )),
+        throwsA(
+          isA<AuthFailure>().having(
+            (e) => e.message,
+            'message',
+            contains('An account with this email already exists'),
+          ),
+        ),
       );
     });
 
     test('username availability reflects taken names', () async {
       expect(await auth.isUsernameAvailable(_need('QA_APP_USERNAME')), isFalse);
-      expect(await auth.isUsernameAvailable('free.${DateTime.now().millisecondsSinceEpoch}'), isTrue);
+      expect(
+        await auth.isUsernameAvailable(
+          'free.${DateTime.now().millisecondsSinceEpoch}',
+        ),
+        isTrue,
+      );
     });
 
     test('sign-up sends a code and rejects a wrong one', () async {
@@ -142,16 +174,32 @@ void main() {
         firstName: 'Sign',
         lastName: 'Up',
       );
-      await auth.resendVerificationCode(contact: email, method: SignUpContactMethod.email);
+      await auth.resendVerificationCode(
+        contact: email,
+        method: SignUpContactMethod.email,
+      );
       await expectLater(
-        auth.verifyContact(contact: email, method: SignUpContactMethod.email, code: '000000'),
-        throwsA(isA<AuthFailure>().having((e) => e.isCodeError, 'isCodeError', isTrue)),
+        auth.verifyContact(
+          contact: email,
+          method: SignUpContactMethod.email,
+          code: '000000',
+        ),
+        throwsA(
+          isA<AuthFailure>().having(
+            (e) => e.isCodeError,
+            'isCodeError',
+            isTrue,
+          ),
+        ),
       );
     });
 
     test('mobile sign-up and mobile reset are refused honestly', () async {
       await expectLater(
-        auth.requestVerificationCode(contact: '+639171234567', method: SignUpContactMethod.mobile),
+        auth.requestVerificationCode(
+          contact: '+639171234567',
+          method: SignUpContactMethod.mobile,
+        ),
         throwsA(isA<AuthFailure>()),
       );
       await expectLater(
@@ -163,21 +211,49 @@ void main() {
     test('password reset: request succeeds; a wrong code is reported as a code error', () async {
       await auth.requestPasswordReset(identifier: _need('QA_EMAIL'));
       await expectLater(
-        auth.resetPassword(identifier: _need('QA_EMAIL'), code: '000000', newPassword: 'Another-Pass-7'),
-        throwsA(isA<AuthFailure>().having((e) => e.isCodeError, 'isCodeError', isTrue)),
+        auth.resetPassword(
+          identifier: _need('QA_EMAIL'),
+          code: '000000',
+          newPassword: 'Another-Pass-7',
+        ),
+        throwsA(
+          isA<AuthFailure>().having(
+            (e) => e.isCodeError,
+            'isCodeError',
+            isTrue,
+          ),
+        ),
       );
     });
 
-    test('the reset code screen rejects a wrong code without changing anything', () async {
-      await auth.requestPasswordReset(identifier: _need('QA_EMAIL'));
-      await expectLater(
-        auth.verifyPasswordResetCode(identifier: _need('QA_EMAIL'), code: '000000'),
-        throwsA(isA<AuthFailure>().having((e) => e.isCodeError, 'isCodeError', isTrue)),
-      );
-    });
+    test(
+      'the reset code screen rejects a wrong code without changing anything',
+      () async {
+        await auth.requestPasswordReset(identifier: _need('QA_EMAIL'));
+        await expectLater(
+          auth.verifyPasswordResetCode(
+            identifier: _need('QA_EMAIL'),
+            code: '000000',
+          ),
+          throwsA(
+            isA<AuthFailure>().having(
+              (e) => e.isCodeError,
+              'isCodeError',
+              isTrue,
+            ),
+          ),
+        );
+      },
+    );
 
-    test('reset request for an unknown email looks the same as a known one', () async {
-      await auth.requestPasswordReset(identifier: 'nobody.${DateTime.now().millisecondsSinceEpoch}@example.com');
-    });
+    test(
+      'reset request for an unknown email looks the same as a known one',
+      () async {
+        await auth.requestPasswordReset(
+          identifier:
+              'nobody.${DateTime.now().millisecondsSinceEpoch}@example.com',
+        );
+      },
+    );
   });
 }

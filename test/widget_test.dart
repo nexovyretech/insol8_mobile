@@ -158,7 +158,10 @@ Future<void> _enterNewPassword(WidgetTester tester, String password) async {
 }
 
 bool _isEnabled(WidgetTester tester, String label) =>
-    tester.widget<FilledButton>(find.widgetWithText(FilledButton, label)).onPressed != null;
+    tester
+        .widget<FilledButton>(find.widgetWithText(FilledButton, label))
+        .onPressed !=
+    null;
 
 /// Buttons sit below the default 800×600 test viewport, so scroll first.
 Future<void> _tapVisible(WidgetTester tester, Finder finder) async {
@@ -251,7 +254,9 @@ void main() {
     WidgetTester tester,
   ) async {
     final auth = _FakeAuthRepository()
-      ..signInFailure = const AuthFailure('Incorrect username, email, or password.');
+      ..signInFailure = const AuthFailure(
+        'Incorrect username, email, or password.',
+      );
     await tester.pumpWidget(
       Insol8App(authRepository: auth, initialRoute: AppRoutes.getStarted),
     );
@@ -259,7 +264,10 @@ void main() {
     await _signInWith(tester, 'WrongPass1');
 
     expect(auth.calls, ['signIn:jane@example.com']);
-    expect(find.text('Incorrect username, email, or password.'), findsOneWidget);
+    expect(
+      find.text('Incorrect username, email, or password.'),
+      findsOneWidget,
+    );
     expect(find.text('Welcome Back!'), findsOneWidget);
   });
 
@@ -315,7 +323,10 @@ void main() {
     await tester.pump();
     await _tapVisible(tester, find.text('Continue'));
     await tester.pumpAndSettle();
-    await tester.enterText(find.byType(TextFormField).first, 'jane@example.com');
+    await tester.enterText(
+      find.byType(TextFormField).first,
+      'jane@example.com',
+    );
     await tester.pump();
     await _tapVisible(tester, find.text('Continue'));
     await tester.pumpAndSettle();
@@ -336,7 +347,10 @@ void main() {
       Insol8App(authRepository: auth, initialRoute: AppRoutes.forgotPassword),
     );
     await tester.pumpAndSettle();
-    await tester.enterText(find.byType(TextFormField).first, 'jane@example.com');
+    await tester.enterText(
+      find.byType(TextFormField).first,
+      'jane@example.com',
+    );
     await tester.pump();
     await _tapVisible(tester, find.text('Send Code'));
     await tester.pumpAndSettle();
@@ -348,7 +362,10 @@ void main() {
     expect(auth.calls, ['reset:jane@example.com', 'verifyCode:111111']);
     expect(find.text('Verify your email'), findsOneWidget);
     expect(find.byType(AuthPasswordField), findsNothing);
-    expect(find.text('That code is incorrect. Check it and try again.'), findsOneWidget);
+    expect(
+      find.text('That code is incorrect. Check it and try again.'),
+      findsOneWidget,
+    );
     for (final field in tester.widgetList<TextField>(_codeFields)) {
       expect(field.controller!.text, isEmpty);
     }
@@ -394,22 +411,24 @@ void main() {
     expect(find.text('Welcome, Jane!'), findsOneWidget);
   });
 
-  testWidgets('Google sign-up with an email that already has an account is refused', (
-    WidgetTester tester,
-  ) async {
-    const message =
-        'An account with this email already exists. Sign in with your email and password, or reset your password.';
-    final auth = _FakeAuthRepository()..googleFailure = const AuthFailure(message);
-    await tester.pumpWidget(
-      Insol8App(authRepository: auth, initialRoute: AppRoutes.getStarted),
-    );
-    await tester.pumpAndSettle();
-    await _tapGoogle(tester);
-    await tester.pumpAndSettle();
+  testWidgets(
+    'Google sign-up with an email that already has an account is refused',
+    (WidgetTester tester) async {
+      const message =
+          'An account with this email already exists. Sign in with your email and password, or reset your password.';
+      final auth = _FakeAuthRepository()
+        ..googleFailure = const AuthFailure(message);
+      await tester.pumpWidget(
+        Insol8App(authRepository: auth, initialRoute: AppRoutes.getStarted),
+      );
+      await tester.pumpAndSettle();
+      await _tapGoogle(tester);
+      await tester.pumpAndSettle();
 
-    expect(find.text(message), findsOneWidget);
-    expect(find.text('Welcome Back!'), findsOneWidget);
-  });
+      expect(find.text(message), findsOneWidget);
+      expect(find.text('Welcome Back!'), findsOneWidget);
+    },
+  );
 
   testWidgets('email sign-in of a brand-new account goes to onboarding', (
     WidgetTester tester,
@@ -445,7 +464,10 @@ void main() {
     await tester.pump();
     await _tapVisible(tester, find.text('Continue'));
     await tester.pumpAndSettle();
-    await tester.enterText(find.byType(TextFormField).first, 'jane@example.com');
+    await tester.enterText(
+      find.byType(TextFormField).first,
+      'jane@example.com',
+    );
     await tester.pump();
     await _tapVisible(tester, find.text('Continue'));
     await tester.pumpAndSettle();
@@ -473,7 +495,10 @@ void main() {
       Insol8App(authRepository: auth, initialRoute: AppRoutes.forgotPassword),
     );
     await tester.pumpAndSettle();
-    await tester.enterText(find.byType(TextFormField).first, 'jane@example.com');
+    await tester.enterText(
+      find.byType(TextFormField).first,
+      'jane@example.com',
+    );
     await tester.pump();
     await _tapVisible(tester, find.text('Send Code'));
     await tester.pumpAndSettle();
@@ -488,7 +513,9 @@ void main() {
     await tester.enterText(fields.at(0), 'weakpass');
     await tester.pump();
     expect(
-      find.text('Include an uppercase letter, a lowercase letter, and a number.'),
+      find.text(
+        'Include an uppercase letter, a lowercase letter, and a number.',
+      ),
       findsOneWidget,
     );
     await tester.enterText(fields.at(0), 'NewPass12');
