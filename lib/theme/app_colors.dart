@@ -15,4 +15,7 @@ abstract final class AppColors {
   static const inactive = Color(0xFFDADADA);
   static const error = Color(0xFFB3261E);
   static const errorSurface = Color(0xFFFFF0EE);
+  static const dashboardCard = Color(0xFFFFF7F1);
+  static const dashboardBorder = Color(0xFFFFE4D5);
+  static const dashboardIconBackground = Color(0xFFFFE9DC);
 }

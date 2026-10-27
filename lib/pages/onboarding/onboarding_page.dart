@@ -12,19 +12,35 @@ import 'package:insol8_mobile/pages/device/qr_scanner_page.dart';
 import 'package:insol8_mobile/routes/app_routes.dart';
 import 'package:insol8_mobile/services/onboarding_repository.dart';
 
+/// Opens the same device-only registration flow from onboarding or dashboard
+/// actions and returns devices configured during that visit.
+Future<List<DeviceSetupData>?> openDeviceRegistrationFlow(
+  BuildContext context, {
+  required OnboardingRepository repository,
+}) => Navigator.of(context).push<List<DeviceSetupData>>(
+  MaterialPageRoute<List<DeviceSetupData>>(
+    builder: (_) => OnboardingPage(repository: repository, deviceOnly: true),
+  ),
+);
+
 /// Post-registration onboarding screens. Payment is intentionally a UI preview
 /// until the team's subscription API and payment gateway are available.
 class OnboardingPage extends StatefulWidget {
-  const OnboardingPage({super.key, required this.repository});
+  const OnboardingPage({
+    super.key,
+    required this.repository,
+    this.deviceOnly = false,
+  });
 
   final OnboardingRepository repository;
+  final bool deviceOnly;
 
   @override
   State<OnboardingPage> createState() => _OnboardingPageState();
 }
 
 class _OnboardingPageState extends State<OnboardingPage> {
-  int _page = 0;
+  late int _page;
   int _plan = 0;
   SubscriptionPaymentMethod _paymentMethod = SubscriptionPaymentMethod.gcash;
   bool _isLoadingPlans = true;
@@ -37,6 +53,7 @@ class _OnboardingPageState extends State<OnboardingPage> {
   final _managerLastNameController = TextEditingController();
   final _deviceCodeController = TextEditingController();
   final _deviceNameController = TextEditingController();
+  final List<DeviceSetupData> _configuredDevices = [];
   bool _isQrScanning = false;
   BranchManagerOption? _managerOption;
   bool _isSavingBranch = false;
@@ -45,7 +62,8 @@ class _OnboardingPageState extends State<OnboardingPage> {
   @override
   void initState() {
     super.initState();
-    _loadPlans();
+    _page = widget.deviceOnly ? 7 : 0;
+    if (!widget.deviceOnly) _loadPlans();
   }
 
   @override
@@ -284,6 +302,18 @@ class _OnboardingPageState extends State<OnboardingPage> {
         ),
       );
       if (!mounted) return;
+      if (widget.deviceOnly) {
+        _configuredDevices.add(
+          DeviceSetupData(
+            deviceCode: _deviceCodeController.text.trim(),
+            deviceName: _deviceNameController.text.trim(),
+            branchName: _branchNameController.text.trim(),
+          ),
+        );
+        Navigator.of(context)
+            .pop(List<DeviceSetupData>.unmodifiable(_configuredDevices));
+        return;
+      }
       Navigator.of(context)
           .pushNamedAndRemoveUntil(AppRoutes.home, (_) => false);
     } catch (_) {
@@ -309,6 +339,13 @@ class _OnboardingPageState extends State<OnboardingPage> {
         ),
       );
       if (!mounted) return;
+      _configuredDevices.add(
+        DeviceSetupData(
+          deviceCode: _deviceCodeController.text.trim(),
+          deviceName: _deviceNameController.text.trim(),
+          branchName: _branchNameController.text.trim(),
+        ),
+      );
       _deviceCodeController.clear();
       _deviceNameController.clear();
       setState(() {
@@ -427,14 +464,26 @@ class _OnboardingPageState extends State<OnboardingPage> {
                 _deviceError = null;
                 _isQrScanning = false;
               }),
-              onBack: () => setState(
-                () => _page = _plans[_plan].id == 'monthly-basic' ? 5 : 6,
-              ),
-              onSkip: () =>
+              onBack: () {
+                if (widget.deviceOnly) {
+                  Navigator.of(context).pop();
+                } else {
+                  setState(
+                    () => _page = _plans[_plan].id == 'monthly-basic' ? 5 : 6,
+                  );
+                }
+              },
+              onSkip: () {
+                if (widget.deviceOnly) {
+                  Navigator.of(context).pop();
+                } else {
                   Navigator.of(context)
-                      .pushNamedAndRemoveUntil(AppRoutes.home, (_) => false),
+                      .pushNamedAndRemoveUntil(AppRoutes.home, (_) => false);
+                }
+              },
               onConnect: _pairDevice,
               onScan: _scanQrCode,
+              showSkip: !widget.deviceOnly,
             ),
             8 => OnboardingDevicePairingLoadingStep(
               key: const ValueKey('device-loading'),
@@ -445,10 +494,16 @@ class _OnboardingPageState extends State<OnboardingPage> {
               deviceCode: _deviceCodeController.text.trim(),
               error: _deviceError,
               onBack: () => setState(() => _page = 7),
-              onSkip: () =>
+              onSkip: () {
+                if (widget.deviceOnly) {
+                  Navigator.of(context).pop();
+                } else {
                   Navigator.of(context)
-                      .pushNamedAndRemoveUntil(AppRoutes.home, (_) => false),
+                      .pushNamedAndRemoveUntil(AppRoutes.home, (_) => false);
+                }
+              },
               onVerify: _verifyDevice,
+              showSkip: !widget.deviceOnly,
             ),
             10 => OnboardingDeviceSetupStep(
               key: const ValueKey('device-setup'),
@@ -457,11 +512,17 @@ class _OnboardingPageState extends State<OnboardingPage> {
               error: _deviceError,
               onChanged: () => setState(() => _deviceError = null),
               onBack: () => setState(() => _page = 9),
-              onSkip: () =>
+              onSkip: () {
+                if (widget.deviceOnly) {
+                  Navigator.of(context).pop();
+                } else {
                   Navigator.of(context)
-                      .pushNamedAndRemoveUntil(AppRoutes.home, (_) => false),
+                      .pushNamedAndRemoveUntil(AppRoutes.home, (_) => false);
+                }
+              },
               onFinish: _finishDeviceSetup,
               onAddAnother: _addAnotherDevice,
+              showSkip: !widget.deviceOnly,
             ),
             _ => const SizedBox.shrink(),
           },

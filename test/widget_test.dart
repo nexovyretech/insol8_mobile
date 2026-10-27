@@ -3,6 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:insol8_mobile/main.dart';
 import 'package:insol8_mobile/models/sign_up_data.dart';
 import 'package:insol8_mobile/models/user_profile.dart';
+import 'package:insol8_mobile/pages/home/dashboard_bottom_navigation.dart';
 import 'package:insol8_mobile/pages/onboarding/onboarding_page.dart';
 import 'package:insol8_mobile/routes/app_routes.dart';
 import 'package:insol8_mobile/services/auth_repository.dart';
@@ -281,8 +282,17 @@ void main() {
     await tester.pumpAndSettle();
     await _signInWith(tester, 'GoodPass1');
 
-    expect(find.text('Welcome, Jane!'), findsOneWidget);
-    expect(find.text('@jane.doe'), findsOneWidget);
+    expect(find.text('Hey, Jane!'), findsOneWidget);
+    expect(find.text('Loads dried today'), findsOneWidget);
+    await tester.tap(
+      find
+          .descendant(
+            of: find.byType(DashboardBottomNavigation),
+            matching: find.byType(InkWell),
+          )
+          .last,
+    );
+    await tester.pumpAndSettle();
     await tester.tap(find.text('Sign out'));
     await tester.pumpAndSettle();
 
@@ -298,7 +308,7 @@ void main() {
       Insol8App(authRepository: auth, initialRoute: AppRoutes.home),
     );
     await tester.pumpAndSettle();
-    expect(find.text('Welcome, Jane!'), findsOneWidget);
+    expect(find.text('Hey, Jane!'), findsOneWidget);
 
     auth.signedIn = false;
     await tester.pumpWidget(const SizedBox());
@@ -408,7 +418,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.byType(OnboardingPage), findsNothing);
-    expect(find.text('Welcome, Jane!'), findsOneWidget);
+    expect(find.text('Hey, Jane!'), findsOneWidget);
   });
 
   testWidgets(
