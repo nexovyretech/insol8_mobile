@@ -14,6 +14,7 @@ class OnboardingConnectDeviceStep extends StatelessWidget {
     required this.onSkip,
     required this.onConnect,
     required this.onScan,
+    this.showSkip = true,
   });
 
   final TextEditingController deviceCodeController;
@@ -23,6 +24,7 @@ class OnboardingConnectDeviceStep extends StatelessWidget {
   final VoidCallback onSkip;
   final VoidCallback onConnect;
   final VoidCallback onScan;
+  final bool showSkip;
 
   @override
   Widget build(BuildContext context) {
@@ -32,7 +34,12 @@ class OnboardingConnectDeviceStep extends StatelessWidget {
       headerSlotHeight: 0,
       child: Column(
         children: [
-          _SetupHeader(title: 'Connect Dryer', onBack: onBack, onSkip: onSkip),
+          _SetupHeader(
+            title: 'Connect Dryer',
+            onBack: onBack,
+            onSkip: onSkip,
+            showSkip: showSkip,
+          ),
           Expanded(
             child: SingleChildScrollView(
               keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
@@ -191,6 +198,7 @@ class OnboardingVerifyDeviceStep extends StatelessWidget {
     required this.onBack,
     required this.onSkip,
     required this.onVerify,
+    this.showSkip = true,
   });
 
   final String deviceCode;
@@ -198,6 +206,7 @@ class OnboardingVerifyDeviceStep extends StatelessWidget {
   final VoidCallback onBack;
   final VoidCallback onSkip;
   final VoidCallback onVerify;
+  final bool showSkip;
 
   @override
   Widget build(BuildContext context) {
@@ -210,6 +219,7 @@ class OnboardingVerifyDeviceStep extends StatelessWidget {
           title: 'Connect Dryer',
           onBack: onBack,
           onSkip: onSkip,
+          showSkip: showSkip,
         ),
         content: [
           const SizedBox(height: 24),
@@ -261,6 +271,7 @@ class OnboardingDeviceSetupStep extends StatelessWidget {
     required this.onSkip,
     required this.onFinish,
     required this.onAddAnother,
+    this.showSkip = true,
   });
 
   final TextEditingController deviceNameController;
@@ -271,6 +282,7 @@ class OnboardingDeviceSetupStep extends StatelessWidget {
   final VoidCallback onSkip;
   final VoidCallback onFinish;
   final VoidCallback onAddAnother;
+  final bool showSkip;
 
   @override
   Widget build(BuildContext context) {
@@ -283,6 +295,7 @@ class OnboardingDeviceSetupStep extends StatelessWidget {
           title: 'Device Details',
           onBack: onBack,
           onSkip: onSkip,
+          showSkip: showSkip,
         ),
         content: [
           const SizedBox(height: 24),
@@ -356,11 +369,13 @@ class _SetupHeader extends StatelessWidget {
     required this.title,
     required this.onBack,
     required this.onSkip,
+    this.showSkip = true,
   });
 
   final String title;
   final VoidCallback onBack;
   final VoidCallback onSkip;
+  final bool showSkip;
 
   @override
   Widget build(BuildContext context) {
@@ -385,15 +400,18 @@ class _SetupHeader extends StatelessWidget {
                   ?.copyWith(fontWeight: FontWeight.w700),
             ),
           ),
-          TextButton(
-            onPressed: onSkip,
-            style: TextButton.styleFrom(
-              minimumSize: Size.zero,
-              padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
-              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-            ),
-            child: const Text('Skip'),
-          ),
+          if (showSkip)
+            TextButton(
+              onPressed: onSkip,
+              style: TextButton.styleFrom(
+                minimumSize: Size.zero,
+                padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              ),
+              child: const Text('Skip'),
+            )
+          else
+            const SizedBox(width: 36),
         ],
       ),
     );

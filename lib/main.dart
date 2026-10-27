@@ -9,6 +9,8 @@ import 'package:insol8_mobile/amplifyconfiguration.dart';
 import 'package:insol8_mobile/routes/app_routes.dart';
 import 'package:insol8_mobile/services/auth_repository.dart';
 import 'package:insol8_mobile/services/cognito_auth_repository.dart';
+import 'package:insol8_mobile/services/dashboard_repository.dart';
+import 'package:insol8_mobile/services/device_repository.dart';
 import 'package:insol8_mobile/services/onboarding_repository.dart';
 import 'package:insol8_mobile/theme/app_theme.dart';
 
@@ -52,6 +54,8 @@ class Insol8App extends StatelessWidget {
     required this.authRepository,
     required this.initialRoute,
     this.onboardingRepository = const MockOnboardingRepository(),
+    this.dashboardRepository = const MockDashboardRepository(),
+    this.deviceRepository = const MockDeviceRepository(),
   });
 
   final AuthRepository authRepository;
@@ -61,6 +65,12 @@ class Insol8App extends StatelessWidget {
   /// is connected.
   final OnboardingRepository onboardingRepository;
 
+  /// Inject a backend-backed dashboard data source when the API is ready.
+  final DashboardRepository dashboardRepository;
+
+  /// Inject an API-backed device data source when the endpoint is ready.
+  final DeviceRepository deviceRepository;
+
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
@@ -68,7 +78,12 @@ class Insol8App extends StatelessWidget {
       debugShowCheckedModeBanner: false,
       theme: AppTheme.light,
       initialRoute: initialRoute,
-      routes: AppRoutes.build(authRepository, onboardingRepository),
+      routes: AppRoutes.build(
+        authRepository,
+        onboardingRepository,
+        dashboardRepository: dashboardRepository,
+        deviceRepository: deviceRepository,
+      ),
     );
   }
 }
