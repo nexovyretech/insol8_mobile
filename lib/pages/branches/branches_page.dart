@@ -63,11 +63,8 @@ class _BranchesPageState extends State<BranchesPage> {
         }
         return;
       }
-      final profile = await widget.authRepository.loadProfile();
-      final planId = await widget.subscriptionRepository.fetchPlanId(
-        profile.username,
-      );
-      if (planId != 'monthly-org') {
+      final planId = await widget.subscriptionRepository.fetchActivePlanId();
+      if (planId != SubscriptionPlanIds.organization) {
         if (mounted) {
           Navigator.of(context).pushReplacementNamed(AppRoutes.devices);
         }

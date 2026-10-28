@@ -21,7 +21,7 @@ class DevicesPage extends StatefulWidget {
     required this.authRepository,
     required this.deviceRepository,
     required this.onboardingRepository,
-    this.subscriptionRepository = const MockSubscriptionRepository(),
+    required this.subscriptionRepository,
   });
 
   final AuthRepository authRepository;
@@ -67,11 +67,8 @@ class _DevicesPageState extends State<DevicesPage> {
         }
         return;
       }
-      final profile = await widget.authRepository.loadProfile();
-      final planId = await widget.subscriptionRepository.fetchPlanId(
-        profile.username,
-      );
-      if (planId == 'monthly-org') {
+      final planId = await widget.subscriptionRepository.fetchActivePlanId();
+      if (planId == SubscriptionPlanIds.organization) {
         if (mounted) {
           Navigator.of(context).pushReplacementNamed(AppRoutes.branches);
         }
@@ -188,8 +185,8 @@ class _DevicesPageState extends State<DevicesPage> {
               id: setup.deviceCode,
               name: setup.deviceName,
               status: DeviceStatus.offline,
-              temperatureCelsius: 0,
-              batteryPercent: 0,
+              temperatureCelsius: null,
+              batteryPercent: null,
               cycleDuration: '—',
               lastUpdated: 'Just now',
             ),

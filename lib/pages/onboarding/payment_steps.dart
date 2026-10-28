@@ -10,6 +10,7 @@ class OnboardingPaymentStep extends StatelessWidget {
   const OnboardingPaymentStep({
     super.key,
     required this.plan,
+    required this.nextBillingDate,
     required this.paymentMethod,
     required this.onPaymentMethodChanged,
     required this.onBack,
@@ -17,6 +18,9 @@ class OnboardingPaymentStep extends StatelessWidget {
   });
 
   final SubscriptionPlan plan;
+
+  /// When the following payment falls due if this one goes through.
+  final DateTime nextBillingDate;
   final SubscriptionPaymentMethod paymentMethod;
   final ValueChanged<SubscriptionPaymentMethod> onPaymentMethodChanged;
   final VoidCallback onBack;
@@ -46,7 +50,7 @@ class OnboardingPaymentStep extends StatelessWidget {
           const SizedBox(height: 18),
           const OnboardingSectionLabel('Subscription Summary'),
           const SizedBox(height: 8),
-          _SubscriptionSummary(plan: plan),
+          _SubscriptionSummary(plan: plan, nextBillingDate: nextBillingDate),
           const SizedBox(height: 14),
           const OnboardingSectionLabel('Payment Method'),
           const SizedBox(height: 8),
@@ -107,9 +111,13 @@ class OnboardingPaymentStep extends StatelessWidget {
 }
 
 class _SubscriptionSummary extends StatelessWidget {
-  const _SubscriptionSummary({required this.plan});
+  const _SubscriptionSummary({
+    required this.plan,
+    required this.nextBillingDate,
+  });
 
   final SubscriptionPlan plan;
+  final DateTime nextBillingDate;
 
   @override
   Widget build(BuildContext context) {
@@ -198,7 +206,7 @@ class _SubscriptionSummary extends StatelessWidget {
                 ),
               ),
               Text(
-                'November 01, 2026',
+                _formatDate(nextBillingDate),
                 style: Theme.of(context).textTheme.bodySmall
                     ?.copyWith(fontSize: 12),
               ),
@@ -268,7 +276,20 @@ class _PaymentMethodRow extends StatelessWidget {
 }
 
 class OnboardingPaymentLoadingStep extends StatelessWidget {
-  const OnboardingPaymentLoadingStep({super.key});
+  const OnboardingPaymentLoadingStep({
+    super.key,
+    this.title = "We're almost there",
+    this.message = 'Please wait while we securely connect you to the payment gateway to complete your transaction.',
+    this.onCheckAgain,
+    this.onCancel,
+  });
+
+  final String title;
+  final String message;
+
+  /// Shown while waiting for the payment to be confirmed.
+  final VoidCallback? onCheckAgain;
+  final VoidCallback? onCancel;
 
   @override
   Widget build(BuildContext context) {
@@ -281,17 +302,33 @@ class OnboardingPaymentLoadingStep extends StatelessWidget {
             const OnboardingLoadingMark(),
             const SizedBox(height: 22),
             Text(
-              "We're almost there",
+              title,
+              textAlign: TextAlign.center,
               style: Theme.of(context).textTheme.titleMedium
                   ?.copyWith(fontWeight: FontWeight.w700),
             ),
             const SizedBox(height: 10),
             Text(
-              'Please wait while we securely connect you to the payment gateway to complete your transaction.',
+              message,
               textAlign: TextAlign.center,
               style: Theme.of(context).textTheme.bodySmall
                   ?.copyWith(fontSize: 13, height: 1.35),
             ),
+            if (onCheckAgain != null) ...[
+              const SizedBox(height: 22),
+              OnboardingGradientButton(
+                label: "I've completed the payment",
+                onPressed: onCheckAgain,
+              ),
+            ],
+            if (onCancel != null) ...[
+              const SizedBox(height: 4),
+              TextButton(
+                onPressed: onCancel,
+                style: TextButton.styleFrom(foregroundColor: AppColors.primary),
+                child: const Text('Cancel payment'),
+              ),
+            ],
           ],
         ),
       ),
@@ -306,12 +343,20 @@ class OnboardingPaymentSuccessStep extends StatelessWidget {
     required this.buttonLabel,
     required this.onContinue,
     required this.onSkip,
+    this.reference,
+    this.nextBillingDate,
   });
 
   final SubscriptionPlan plan;
   final String buttonLabel;
   final VoidCallback onContinue;
   final VoidCallback onSkip;
+
+  /// Checkout reference confirmed by the backend.
+  final String? reference;
+
+  /// End of the paid month; the plan locks after this until renewed.
+  final DateTime? nextBillingDate;
 
   @override
   Widget build(BuildContext context) {
@@ -361,13 +406,10 @@ class OnboardingPaymentSuccessStep extends StatelessWidget {
             child: OnboardingSectionLabel('Transaction Details'),
           ),
           const SizedBox(height: 8),
-          _MockTransactionCard(plan: plan),
-          const SizedBox(height: 8),
-          Text(
-            'Preview only — no real payment has been processed.',
-            textAlign: TextAlign.center,
-            style: Theme.of(context).textTheme.bodySmall
-                ?.copyWith(color: AppColors.fieldHint, fontSize: 14),
+          _TransactionCard(
+            plan: plan,
+            reference: reference,
+            nextBillingDate: nextBillingDate,
           ),
         ],
         actions: [
@@ -398,10 +440,16 @@ class OnboardingPaymentSuccessStep extends StatelessWidget {
   }
 }
 
-class _MockTransactionCard extends StatelessWidget {
-  const _MockTransactionCard({required this.plan});
+class _TransactionCard extends StatelessWidget {
+  const _TransactionCard({
+    required this.plan,
+    this.reference,
+    this.nextBillingDate,
+  });
 
   final SubscriptionPlan plan;
+  final String? reference;
+  final DateTime? nextBillingDate;
 
   @override
   Widget build(BuildContext context) {
@@ -414,9 +462,7 @@ class _MockTransactionCard extends StatelessWidget {
         children: [
           Center(
             child: Text(
-              plan.id == 'monthly-org'
-                  ? 'MONTHLY ORGANIZATION TIER'
-                  : 'MONTHLY BASIC TIER',
+              'MONTHLY ${plan.name.toUpperCase()}',
               textAlign: TextAlign.center,
               style: Theme.of(context).textTheme.bodySmall?.copyWith(
                 color: AppColors.primary,
@@ -427,15 +473,17 @@ class _MockTransactionCard extends StatelessWidget {
           ),
           const Divider(height: 18, color: Color(0xFFFFD7C2)),
           const SizedBox(height: 10),
-          const _SummaryRow(label: 'Transaction ID:', value: 'TXN-10012026'),
+          _SummaryRow(label: 'Reference:', value: reference ?? '—'),
           const SizedBox(height: 8),
-          const _SummaryRow(
+          _SummaryRow(
             label: 'Next Billing Date:',
-            value: 'October 01, 2026',
+            value: nextBillingDate == null
+                ? '—'
+                : _formatDate(nextBillingDate!.toLocal()),
           ),
           const Divider(height: 18, color: Color(0xFFFFD7C2)),
           Text(
-            'Your plan is now active. Official receipt sent to your email.',
+            'Your plan is now active. Renew before the billing date to keep your features.',
             style: Theme.of(context).textTheme.bodySmall
                 ?.copyWith(color: AppColors.body, fontSize: 12),
           ),
@@ -479,6 +527,22 @@ class _SummaryRow extends StatelessWidget {
 }
 
 String _subscriptionDisplayName(SubscriptionPlan plan) =>
-    plan.id == 'monthly-org'
-    ? 'InSOL8 Monthly Organization Tier'
-    : 'InSOL8 Monthly Basic Tier';
+    'InSOL8 Monthly ${plan.name}';
+
+const _months = [
+  'January',
+  'February',
+  'March',
+  'April',
+  'May',
+  'June',
+  'July',
+  'August',
+  'September',
+  'October',
+  'November',
+  'December',
+];
+
+String _formatDate(DateTime date) =>
+    '${_months[date.month - 1]} ${date.day.toString().padLeft(2, '0')}, ${date.year}';

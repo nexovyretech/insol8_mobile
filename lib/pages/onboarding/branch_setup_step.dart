@@ -24,6 +24,7 @@ class OnboardingBranchSetupStep extends StatelessWidget {
     this.showSkip = true,
     this.heading = 'Name your first branch',
     this.finishLabel = 'Finish Setup',
+    this.canAssignManagers = true,
   });
 
   final VoidCallback onBack;
@@ -41,6 +42,9 @@ class OnboardingBranchSetupStep extends StatelessWidget {
   final bool showSkip;
   final String heading;
   final String finishLabel;
+
+  /// False on plans where the owner must manage the branch (Basic).
+  final bool canAssignManagers;
 
   @override
   Widget build(BuildContext context) {
@@ -159,9 +163,21 @@ class OnboardingBranchSetupStep extends StatelessWidget {
                   title: 'Add a new manager',
                   value: BranchManagerOption.newManager,
                   selected: managerOption == BranchManagerOption.newManager,
-                  onTap: () =>
-                      onManagerOptionChanged(BranchManagerOption.newManager),
+                  onTap: canAssignManagers
+                      ? () => onManagerOptionChanged(
+                          BranchManagerOption.newManager,
+                        )
+                      : null,
                 ),
+                if (!canAssignManagers) ...[
+                  const SizedBox(height: 6),
+                  Text(
+                    'Assigning a separate manager is available on the Organization plan.',
+                    textAlign: TextAlign.center,
+                    style: Theme.of(context).textTheme.bodySmall
+                        ?.copyWith(fontSize: 12, color: AppColors.fieldHint),
+                  ),
+                ],
                 const SizedBox(height: 12),
                 Text(
                   'Managers can start cycles, monitor chamber temperatures, and report branch issues.',
@@ -256,37 +272,42 @@ class _ManagerOptionTile extends StatelessWidget {
   final String title;
   final BranchManagerOption value;
   final bool selected;
-  final VoidCallback onTap;
+
+  /// Null disables the option.
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
-    return Material(
-      color: selected ? const Color(0xFFFFF5EF) : Colors.transparent,
-      borderRadius: BorderRadius.circular(12),
-      child: InkWell(
-        onTap: onTap,
+    return Opacity(
+      opacity: onTap != null ? 1 : 0.45,
+      child: Material(
+        color: selected ? const Color(0xFFFFF5EF) : Colors.transparent,
         borderRadius: BorderRadius.circular(12),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-          child: Row(
-            children: [
-              Expanded(
-                child: Text(
-                  title,
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: selected ? AppColors.primary : AppColors.body,
-                    fontSize: 12,
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(12),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    title,
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: selected ? AppColors.primary : AppColors.body,
+                      fontSize: 12,
+                    ),
                   ),
                 ),
-              ),
-              Icon(
-                selected
-                    ? Icons.radio_button_checked
-                    : Icons.radio_button_unchecked,
-                color: AppColors.primary,
-                size: 18,
-              ),
-            ],
+                Icon(
+                  selected
+                      ? Icons.radio_button_checked
+                      : Icons.radio_button_unchecked,
+                  color: AppColors.primary,
+                  size: 18,
+                ),
+              ],
+            ),
           ),
         ),
       ),

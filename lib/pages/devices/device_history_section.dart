@@ -125,7 +125,7 @@ class _HistoryCard extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                record.fabricType,
+                record.fabricType ?? 'Drying cycle',
                 style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                   color: AppColors.primary,
                   fontSize: 14,
@@ -150,7 +150,9 @@ class _HistoryCard extends StatelessWidget {
     ),
   );
 
-  String _number(double value) => value == value.roundToDouble()
+  String _number(double? value) => value == null
+      ? '—'
+      : value == value.roundToDouble()
       ? value.toInt().toString()
-      : value.toString();
+      : value.toStringAsFixed(1);
 }

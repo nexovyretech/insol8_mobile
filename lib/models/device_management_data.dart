@@ -16,13 +16,13 @@ class DeviceManagementData {
       DeviceManagementData(
         device: DeviceData.fromJson(json['device'] as Map<String, dynamic>),
         serialId: json['serialId'] as String,
-        modelType: json['modelType'] as String,
-        firmwareVersion: json['firmwareVersion'] as String,
+        modelType: json['modelType'] as String?,
+        firmwareVersion: json['firmwareVersion'] as String?,
         status: DeviceStatus.values.firstWhere(
           (status) => status.name == json['status'],
           orElse: () => DeviceStatus.offline,
         ),
-        pcmReservePercent: (json['pcmReservePercent'] as num).toInt(),
+        pcmReservePercent: (json['pcmReservePercent'] as num?)?.toInt(),
         currentBranch: json['currentBranch'] as String,
         availableBranches: (json['availableBranches'] as List<dynamic>)
             .cast<String>(),
@@ -30,10 +30,14 @@ class DeviceManagementData {
 
   final DeviceData device;
   final String serialId;
-  final String modelType;
-  final String firmwareVersion;
+
+  /// Not reported by the backend yet.
+  final String? modelType;
+  final String? firmwareVersion;
   final DeviceStatus status;
-  final int pcmReservePercent;
+
+  /// Null until the PCM reserve calculation is defined.
+  final int? pcmReservePercent;
   final String currentBranch;
   final List<String> availableBranches;
 }

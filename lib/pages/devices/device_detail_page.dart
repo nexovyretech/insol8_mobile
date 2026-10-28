@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_svg/flutter_svg.dart';
@@ -9,6 +11,7 @@ import 'package:insol8_mobile/pages/devices/device_history_section.dart';
 import 'package:insol8_mobile/pages/devices/device_summary_card.dart';
 import 'package:insol8_mobile/services/auth_repository.dart';
 import 'package:insol8_mobile/services/device_repository.dart';
+import 'package:insol8_mobile/services/live_telemetry.dart';
 import 'package:insol8_mobile/theme/app_colors.dart';
 import 'package:insol8_mobile/theme/app_spacing.dart';
 
@@ -18,11 +21,16 @@ class DeviceDetailPage extends StatefulWidget {
     required this.device,
     required this.authRepository,
     required this.deviceRepository,
+    this.liveTelemetry,
   });
 
   final DeviceData device;
   final AuthRepository authRepository;
   final DeviceRepository deviceRepository;
+
+  /// Pushes the dryer's readings while the page is open; null shows only the
+  /// values loaded from [deviceRepository].
+  final LiveTelemetrySource? liveTelemetry;
 
   @override
   State<DeviceDetailPage> createState() => _DeviceDetailPageState();
@@ -37,11 +45,41 @@ class _DeviceDetailPageState extends State<DeviceDetailPage> {
   DeviceOperatingMode _operatingMode = DeviceOperatingMode.automatic;
   String? _errorMessage;
   bool _isLoading = true;
+  StreamSubscription<LiveTelemetryBatch>? _liveUpdates;
 
   @override
   void initState() {
     super.initState();
     _loadDetails();
+  }
+
+  @override
+  void dispose() {
+    _liveUpdates?.cancel();
+    super.dispose();
+  }
+
+  // Live updates are best effort: if the connection fails the page keeps the
+  // last loaded values.
+  void _watchLiveTelemetry() {
+    final live = widget.liveTelemetry;
+    if (live == null || _liveUpdates != null) return;
+    _liveUpdates = live
+        .watch(widget.device.id)
+        .listen(_applyLiveBatch, onError: (Object _) {});
+  }
+
+  void _applyLiveBatch(LiveTelemetryBatch batch) {
+    final details = _details;
+    if (!mounted || details == null) return;
+    // A cycle started or ended since the page loaded: reload its details.
+    if (batch.sessionId != details.sessionId) {
+      _loadDetails();
+      return;
+    }
+    final temperature = batch.latestChamberTemperature;
+    if (temperature == null) return;
+    setState(() => _details = details.withChamberTemperature(temperature));
   }
 
   Future<void> _loadDetails() async {
@@ -61,6 +99,7 @@ class _DeviceDetailPageState extends State<DeviceDetailPage> {
         _operatingMode = details.operatingMode;
         _isLoading = false;
       });
+      _watchLiveTelemetry();
     } on Exception {
       if (!mounted) return;
       setState(() {

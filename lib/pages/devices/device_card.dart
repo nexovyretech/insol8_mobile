@@ -47,7 +47,7 @@ class DeviceCard extends StatelessWidget {
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      '${_formatTemperature(device.temperatureCelsius)}°C  |  ${device.batteryPercent}%  |  ${device.cycleDuration}',
+                      '${_formatTemperature(device.temperatureCelsius)}°C  |  ${device.batteryPercent ?? '—'}%  |  ${device.cycleDuration}',
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: Theme.of(context).textTheme.bodySmall
@@ -83,7 +83,9 @@ class DeviceCard extends StatelessWidget {
     );
   }
 
-  String _formatTemperature(double value) => value == value.roundToDouble()
+  String _formatTemperature(double? value) => value == null
+      ? '—'
+      : value == value.roundToDouble()
       ? value.toInt().toString()
       : value.toStringAsFixed(1);
 }

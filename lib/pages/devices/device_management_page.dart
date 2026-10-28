@@ -289,10 +289,13 @@ class _DeviceManagementPageState extends State<DeviceManagementPage> {
               label: 'Device Serial / ID',
               value: details.serialId,
             ),
-            _ManagementRow(label: 'Model Type', value: details.modelType),
+            _ManagementRow(
+              label: 'Model Type',
+              value: details.modelType ?? '—',
+            ),
             _ManagementRow(
               label: 'Firmware',
-              value: details.firmwareVersion,
+              value: details.firmwareVersion ?? '—',
               isLast: true,
             ),
           ],
@@ -310,7 +313,9 @@ class _DeviceManagementPageState extends State<DeviceManagementPage> {
             ),
             _ManagementRow(
               label: 'PCM Reserve',
-              value: '${details.pcmReservePercent}% Charged',
+              value: details.pcmReservePercent == null
+                  ? '—'
+                  : '${details.pcmReservePercent}% Charged',
               isLast: true,
             ),
           ],

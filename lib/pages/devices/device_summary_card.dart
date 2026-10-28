@@ -10,28 +10,29 @@ class DeviceSummaryCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final remaining = details.timeRemainingMinutes;
     final metrics = [
       _GaugeMetric(
         title: 'Chamber Temperature',
         value: '${_number(details.chamberTemperatureCelsius)}°C',
-        progress: (details.chamberTemperatureCelsius / 100)
-            .clamp(0, 1)
-            .toDouble(),
+        progress: _fraction(details.chamberTemperatureCelsius, 100),
       ),
       _GaugeMetric(
         title: 'Thermal Charge Status',
         value: '${_number(details.thermalChargePercent)}%',
-        progress: (details.thermalChargePercent / 100).clamp(0, 1).toDouble(),
+        progress: _fraction(details.thermalChargePercent, 100),
       ),
       _GaugeMetric(
         title: 'Load Capacity',
         value: '${_number(details.loadCapacityKg)}kg',
-        progress: 0.78,
+        progress: details.loadCapacityKg == null ? 0 : 0.78,
       ),
       _GaugeMetric(
         title: 'Time Remaining',
-        value: '${details.timeRemainingMinutes}mins',
-        progress: 0.72,
+        value: '${remaining ?? '—'}mins',
+        progress: remaining == null || details.runtimeMinutes == 0
+            ? 0
+            : _fraction(remaining.toDouble(), details.runtimeMinutes),
       ),
     ];
 
@@ -123,9 +124,15 @@ class DeviceSummaryCard extends StatelessWidget {
     );
   }
 
-  String _number(double value) => value == value.roundToDouble()
+  // Values the backend cannot provide yet arrive as null and show as a dash.
+  String _number(double? value) => value == null
+      ? '—'
+      : value == value.roundToDouble()
       ? value.toInt().toString()
-      : value.toString();
+      : value.toStringAsFixed(1);
+
+  double _fraction(double? value, num whole) =>
+      value == null ? 0 : (value / whole).clamp(0, 1).toDouble();
 }
 
 class _ActiveBadge extends StatelessWidget {

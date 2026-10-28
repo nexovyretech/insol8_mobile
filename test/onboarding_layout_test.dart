@@ -49,6 +49,7 @@ final Map<String, (Widget Function(), String)> _screens = {
   'payment': (
     () => OnboardingPaymentStep(
       plan: _plan,
+      nextBillingDate: DateTime(2026, 11, 28),
       paymentMethod: SubscriptionPaymentMethod.gcash,
       onPaymentMethodChanged: (_) {},
       onBack: _noop,

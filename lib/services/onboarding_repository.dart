@@ -1,90 +1,34 @@
 import 'package:insol8_mobile/models/subscription_plan.dart';
 import 'package:insol8_mobile/models/branch_setup_data.dart';
 import 'package:insol8_mobile/models/device_setup_data.dart';
+import 'package:insol8_mobile/models/onboarding_status.dart';
 
-/// Backend boundary for onboarding plans and subscription checkout.
-/// Replace [MockOnboardingRepository] with an API implementation when the
-/// team's endpoints and payment gateway credentials are available.
+/// Backend boundary for onboarding: plans, checkout, branch and device setup.
+/// [ApiOnboardingRepository] calls the InSOL8 API. Failures surface as
+/// `ApiException`.
 abstract interface class OnboardingRepository {
   Future<List<SubscriptionPlan>> fetchSubscriptionPlans();
+
+  /// Current progress, including whether the subscription has been paid.
+  Future<OnboardingStatus> fetchOnboardingStatus();
 
   Future<CheckoutSession> createCheckoutSession({
     required String planId,
     required SubscriptionPaymentMethod paymentMethod,
   });
 
-  Future<void> createBranch(BranchSetupData data);
+  /// Asks the backend to check checkout [reference] with the payment provider
+  /// and record it if paid. True once the payment is recorded.
+  Future<bool> confirmPayment(String reference);
 
+  /// Creates the branch and returns its `branchId`.
+  Future<String> createBranch(BranchSetupData data);
+
+  /// Checks the device code exists and can be linked, without claiming it.
   Future<void> pairDevice(DevicePairingRequest request);
 
   Future<void> verifyDevice(DeviceVerificationRequest request);
 
+  /// Links the device to the account with its nickname and branch.
   Future<void> configureDevice(DeviceSetupData data);
-}
-
-/// Local fixture data for UI development. It never initiates or confirms a
-/// payment; the returned session has no checkout URL until a backend is wired.
-class MockOnboardingRepository implements OnboardingRepository {
-  const MockOnboardingRepository();
-
-  static const _plans = [
-    SubscriptionPlan(
-      id: 'monthly-basic',
-      name: 'MONTHLY BASIC',
-      price: 200,
-      description: 'For single laundry shops.',
-      features: [
-        'Multiple device registration',
-        'Device monitoring',
-        'Energy analytics',
-        'Profit analytics',
-      ],
-    ),
-    SubscriptionPlan(
-      id: 'monthly-org',
-      name: 'MONTHLY ORG',
-      price: 500,
-      description: 'For multi-branch businesses.',
-      features: [
-        'Multiple device registration',
-        'Multiple branch registration',
-        'Device monitoring',
-        'Energy analytics',
-        'Profit analytics',
-      ],
-    ),
-  ];
-
-  @override
-  Future<List<SubscriptionPlan>> fetchSubscriptionPlans() async => _plans;
-
-  @override
-  Future<CheckoutSession> createCheckoutSession({
-    required String planId,
-    required SubscriptionPaymentMethod paymentMethod,
-  }) async {
-    await Future<void>.delayed(const Duration(milliseconds: 500));
-    return const CheckoutSession();
-  }
-
-  @override
-  Future<void> createBranch(BranchSetupData data) async {
-    // Branch data remains local until a branch API is connected.
-    await Future<void>.delayed(const Duration(milliseconds: 350));
-  }
-
-  @override
-  Future<void> pairDevice(DevicePairingRequest request) async {
-    await Future<void>.delayed(const Duration(milliseconds: 700));
-  }
-
-  @override
-  Future<void> verifyDevice(DeviceVerificationRequest request) async {
-    await Future<void>.delayed(const Duration(milliseconds: 700));
-  }
-
-  @override
-  Future<void> configureDevice(DeviceSetupData data) async {
-    await Future<void>.delayed(const Duration(milliseconds: 350));
-  }
 }
