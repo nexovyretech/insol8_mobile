@@ -10,10 +10,12 @@ import 'package:insol8_mobile/routes/app_route_registry.dart';
 import 'package:insol8_mobile/routes/app_routes.dart';
 import 'package:insol8_mobile/services/analytics_repository.dart';
 import 'package:insol8_mobile/services/auth_repository.dart';
+import 'package:insol8_mobile/services/branch_repository.dart';
 import 'package:insol8_mobile/services/cognito_auth_repository.dart';
 import 'package:insol8_mobile/services/dashboard_repository.dart';
 import 'package:insol8_mobile/services/device_repository.dart';
 import 'package:insol8_mobile/services/onboarding_repository.dart';
+import 'package:insol8_mobile/services/subscription_repository.dart';
 import 'package:insol8_mobile/theme/app_theme.dart';
 
 Future<void> main() async {
@@ -59,6 +61,8 @@ class Insol8App extends StatelessWidget {
     this.dashboardRepository = const MockDashboardRepository(),
     this.deviceRepository = const MockDeviceRepository(),
     this.analyticsRepository = const MockAnalyticsRepository(),
+    this.branchRepository = const MockBranchRepository(),
+    this.subscriptionRepository = const MockSubscriptionRepository(),
   });
 
   final AuthRepository authRepository;
@@ -77,6 +81,12 @@ class Insol8App extends StatelessWidget {
   /// Inject an API-backed analytics data source when the endpoint is ready.
   final AnalyticsRepository analyticsRepository;
 
+  /// Replace with an API-backed branch data source when the endpoint is ready.
+  final BranchRepository branchRepository;
+
+  /// Resolves the active account tier; the mock preview starts as Organization.
+  final SubscriptionRepository subscriptionRepository;
+
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
@@ -90,6 +100,8 @@ class Insol8App extends StatelessWidget {
         dashboardRepository: dashboardRepository,
         deviceRepository: deviceRepository,
         analyticsRepository: analyticsRepository,
+        branchRepository: branchRepository,
+        subscriptionRepository: subscriptionRepository,
       ),
     );
   }

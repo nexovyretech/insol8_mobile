@@ -7,6 +7,7 @@ abstract final class AppRoutes {
   static const onboarding = '/onboarding';
   static const home = '/home';
   static const devices = '/devices';
+  static const branches = '/branches';
   static const deviceSearch = '/devices/search';
   static const deviceDetails = '/devices/details';
   static const addDevice = '/devices/add';

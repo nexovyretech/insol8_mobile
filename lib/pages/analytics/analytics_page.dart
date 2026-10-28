@@ -6,6 +6,7 @@ import 'package:insol8_mobile/pages/home/dashboard_bottom_navigation.dart';
 import 'package:insol8_mobile/routes/app_routes.dart';
 import 'package:insol8_mobile/services/analytics_repository.dart';
 import 'package:insol8_mobile/services/auth_repository.dart';
+import 'package:insol8_mobile/services/subscription_repository.dart';
 import 'package:insol8_mobile/theme/app_colors.dart';
 import 'package:insol8_mobile/theme/app_spacing.dart';
 
@@ -14,10 +15,12 @@ class AnalyticsPage extends StatefulWidget {
     super.key,
     required this.authRepository,
     required this.analyticsRepository,
+    this.subscriptionRepository = const MockSubscriptionRepository(),
   });
 
   final AuthRepository authRepository;
   final AnalyticsRepository analyticsRepository;
+  final SubscriptionRepository subscriptionRepository;
 
   @override
   State<AnalyticsPage> createState() => _AnalyticsPageState();
@@ -29,6 +32,7 @@ class _AnalyticsPageState extends State<AnalyticsPage> {
   String? _error;
   bool _loading = true;
   int _loadGeneration = 0;
+  bool _organizationPlan = true;
 
   @override
   void initState() {
@@ -53,6 +57,12 @@ class _AnalyticsPageState extends State<AnalyticsPage> {
         }
         return;
       }
+      final profile = await widget.authRepository.loadProfile();
+      final planId = await widget.subscriptionRepository.fetchPlanId(
+        profile.username,
+      );
+      if (!mounted || generation != _loadGeneration) return;
+      _organizationPlan = planId == 'monthly-org';
       final data = await widget.analyticsRepository.fetchAnalytics(
         period: period,
       );
@@ -93,7 +103,9 @@ class _AnalyticsPageState extends State<AnalyticsPage> {
       Navigator.of(context)
           .popUntil((route) => route.settings.name == AppRoutes.home);
     } else if (index == 1) {
-      Navigator.of(context).pushNamed(AppRoutes.devices);
+      Navigator.of(
+        context,
+      ).pushNamed(_organizationPlan ? AppRoutes.branches : AppRoutes.devices);
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Settings will be available soon.')),
@@ -132,6 +144,7 @@ class _AnalyticsPageState extends State<AnalyticsPage> {
       ),
       bottomNavigationBar: DashboardBottomNavigation(
         selectedIndex: 2,
+        organizationPlan: _organizationPlan,
         onSelect: _onNavigationSelected,
       ),
     ),

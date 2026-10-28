@@ -13,6 +13,7 @@ import 'package:insol8_mobile/services/auth_repository.dart';
 import 'package:insol8_mobile/services/dashboard_repository.dart';
 import 'package:insol8_mobile/services/device_repository.dart';
 import 'package:insol8_mobile/services/onboarding_repository.dart';
+import 'package:insol8_mobile/services/subscription_repository.dart';
 import 'package:insol8_mobile/theme/app_colors.dart';
 import 'package:insol8_mobile/theme/app_spacing.dart';
 
@@ -25,12 +26,14 @@ class HomePage extends StatefulWidget {
     required this.dashboardRepository,
     required this.deviceRepository,
     required this.onboardingRepository,
+    this.subscriptionRepository = const MockSubscriptionRepository(),
   });
 
   final AuthRepository authRepository;
   final DashboardRepository dashboardRepository;
   final DeviceRepository deviceRepository;
   final OnboardingRepository onboardingRepository;
+  final SubscriptionRepository subscriptionRepository;
 
   @override
   State<HomePage> createState() => _HomePageState();
@@ -41,6 +44,7 @@ class _HomePageState extends State<HomePage> {
   DashboardData? _dashboard;
   String? _errorMessage;
   bool _isLoading = true;
+  bool _organizationPlan = true;
 
   @override
   void initState() {
@@ -59,10 +63,14 @@ class _HomePageState extends State<HomePage> {
     }
     try {
       final profile = await widget.authRepository.loadProfile();
+      final planId = await widget.subscriptionRepository.fetchPlanId(
+        profile.username,
+      );
       final dashboard = await widget.dashboardRepository.fetchDashboard();
       if (!mounted) return;
       setState(() {
         _profile = profile;
+        _organizationPlan = planId == 'monthly-org';
         _dashboard = dashboard;
         _isLoading = false;
       });
@@ -167,7 +175,9 @@ class _HomePageState extends State<HomePage> {
   void _onNavigationSelected(int index) {
     if (index == 0) return;
     if (index == 1) {
-      Navigator.of(context).pushNamed(AppRoutes.devices);
+      Navigator.of(
+        context,
+      ).pushNamed(_organizationPlan ? AppRoutes.branches : AppRoutes.devices);
       return;
     }
     if (index == 2) {
@@ -252,7 +262,10 @@ class _HomePageState extends State<HomePage> {
         ),
         bottomNavigationBar: _isLoading || _errorMessage != null
             ? null
-            : DashboardBottomNavigation(onSelect: _onNavigationSelected),
+            : DashboardBottomNavigation(
+                organizationPlan: _organizationPlan,
+                onSelect: _onNavigationSelected,
+              ),
       ),
     );
   }

@@ -11,15 +11,22 @@ import 'package:insol8_mobile/pages/onboarding/welcome_step.dart';
 import 'package:insol8_mobile/pages/devices/qr_scanner_page.dart';
 import 'package:insol8_mobile/routes/app_routes.dart';
 import 'package:insol8_mobile/services/onboarding_repository.dart';
+import 'package:insol8_mobile/services/auth_repository.dart';
+import 'package:insol8_mobile/services/subscription_repository.dart';
 
 /// Opens the same device-only registration flow from onboarding or dashboard
 /// actions and returns devices configured during that visit.
 Future<List<DeviceSetupData>?> openDeviceRegistrationFlow(
   BuildContext context, {
   required OnboardingRepository repository,
+  String? initialBranchName,
 }) => Navigator.of(context).push<List<DeviceSetupData>>(
   MaterialPageRoute<List<DeviceSetupData>>(
-    builder: (_) => OnboardingPage(repository: repository, deviceOnly: true),
+    builder: (_) => OnboardingPage(
+      repository: repository,
+      deviceOnly: true,
+      initialBranchName: initialBranchName,
+    ),
   ),
 );
 
@@ -29,11 +36,17 @@ class OnboardingPage extends StatefulWidget {
   const OnboardingPage({
     super.key,
     required this.repository,
+    this.authRepository,
+    this.subscriptionRepository,
     this.deviceOnly = false,
+    this.initialBranchName,
   });
 
   final OnboardingRepository repository;
+  final AuthRepository? authRepository;
+  final SubscriptionRepository? subscriptionRepository;
   final bool deviceOnly;
+  final String? initialBranchName;
 
   @override
   State<OnboardingPage> createState() => _OnboardingPageState();
@@ -63,6 +76,7 @@ class _OnboardingPageState extends State<OnboardingPage> {
   void initState() {
     super.initState();
     _page = widget.deviceOnly ? 7 : 0;
+    _branchNameController.text = widget.initialBranchName ?? '';
     if (!widget.deviceOnly) _loadPlans();
   }
 
@@ -129,6 +143,15 @@ class _OnboardingPageState extends State<OnboardingPage> {
           ),
         );
         return;
+      }
+      final authRepository = widget.authRepository;
+      final subscriptionRepository = widget.subscriptionRepository;
+      if (authRepository != null && subscriptionRepository != null) {
+        final profile = await authRepository.loadProfile();
+        await subscriptionRepository.savePlanId(
+          accountId: profile.username,
+          planId: _plans[_plan].id,
+        );
       }
       setState(() {
         _page = 5;

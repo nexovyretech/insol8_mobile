@@ -10,6 +10,7 @@ import 'package:insol8_mobile/routes/app_routes.dart';
 import 'package:insol8_mobile/services/auth_repository.dart';
 import 'package:insol8_mobile/services/device_repository.dart';
 import 'package:insol8_mobile/services/onboarding_repository.dart';
+import 'package:insol8_mobile/services/subscription_repository.dart';
 import 'package:insol8_mobile/theme/app_colors.dart';
 import 'package:insol8_mobile/theme/app_spacing.dart';
 
@@ -20,11 +21,13 @@ class DevicesPage extends StatefulWidget {
     required this.authRepository,
     required this.deviceRepository,
     required this.onboardingRepository,
+    this.subscriptionRepository = const MockSubscriptionRepository(),
   });
 
   final AuthRepository authRepository;
   final DeviceRepository deviceRepository;
   final OnboardingRepository onboardingRepository;
+  final SubscriptionRepository subscriptionRepository;
 
   @override
   State<DevicesPage> createState() => _DevicesPageState();
@@ -61,6 +64,16 @@ class _DevicesPageState extends State<DevicesPage> {
         if (mounted) {
           Navigator.of(context)
               .pushNamedAndRemoveUntil(AppRoutes.getStarted, (_) => false);
+        }
+        return;
+      }
+      final profile = await widget.authRepository.loadProfile();
+      final planId = await widget.subscriptionRepository.fetchPlanId(
+        profile.username,
+      );
+      if (planId == 'monthly-org') {
+        if (mounted) {
+          Navigator.of(context).pushReplacementNamed(AppRoutes.branches);
         }
         return;
       }
@@ -226,6 +239,7 @@ class _DevicesPageState extends State<DevicesPage> {
       ),
       bottomNavigationBar: DashboardBottomNavigation(
         selectedIndex: 1,
+        organizationPlan: false,
         onSelect: _onNavigationSelected,
       ),
     ),
