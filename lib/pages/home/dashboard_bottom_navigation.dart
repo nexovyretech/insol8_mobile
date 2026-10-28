@@ -18,7 +18,7 @@ class DashboardBottomNavigation extends StatelessWidget {
     const items = [
       ('assets/icons/nav_home.svg', 'Home'),
       ('assets/icons/nav_devices.svg', 'Devices'),
-      ('assets/icons/nav_activity.svg', 'Activity'),
+      ('assets/icons/nav_activity.svg', 'Analytics'),
       ('assets/icons/nav_settings.svg', 'Settings'),
     ];
     return Container(
