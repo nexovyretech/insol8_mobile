@@ -8,7 +8,7 @@ import 'package:insol8_mobile/pages/onboarding/device_setup_steps.dart';
 import 'package:insol8_mobile/pages/onboarding/payment_steps.dart';
 import 'package:insol8_mobile/pages/onboarding/subscription_steps.dart';
 import 'package:insol8_mobile/pages/onboarding/welcome_step.dart';
-import 'package:insol8_mobile/pages/device/qr_scanner_page.dart';
+import 'package:insol8_mobile/pages/devices/qr_scanner_page.dart';
 import 'package:insol8_mobile/routes/app_routes.dart';
 import 'package:insol8_mobile/services/onboarding_repository.dart';
 

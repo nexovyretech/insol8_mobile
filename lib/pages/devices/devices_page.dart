@@ -121,6 +121,10 @@ class _DevicesPageState extends State<DevicesPage> {
           .popUntil((route) => route.settings.name == AppRoutes.home);
       return;
     }
+    if (index == 2) {
+      Navigator.of(context).pushNamed(AppRoutes.analytics);
+      return;
+    }
     if (index == 3) {
       _showSettings();
       return;

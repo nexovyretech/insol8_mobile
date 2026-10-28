@@ -170,6 +170,10 @@ class _HomePageState extends State<HomePage> {
       Navigator.of(context).pushNamed(AppRoutes.devices);
       return;
     }
+    if (index == 2) {
+      Navigator.of(context).pushNamed(AppRoutes.analytics);
+      return;
+    }
     if (index == 3) {
       _showSettings();
       return;
