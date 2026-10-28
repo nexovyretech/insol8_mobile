@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import 'package:insol8_mobile/models/branch_setup_data.dart';
 import 'package:insol8_mobile/theme/app_colors.dart';
+import 'package:insol8_mobile/theme/app_spacing.dart';
 
 import 'package:insol8_mobile/pages/onboarding/onboarding_shared_widgets.dart';
 
@@ -20,6 +21,9 @@ class OnboardingBranchSetupStep extends StatelessWidget {
     required this.onFieldChanged,
     required this.onSkip,
     required this.onFinish,
+    this.showSkip = true,
+    this.heading = 'Name your first branch',
+    this.finishLabel = 'Finish Setup',
   });
 
   final VoidCallback onBack;
@@ -34,6 +38,9 @@ class OnboardingBranchSetupStep extends StatelessWidget {
   final VoidCallback onFieldChanged;
   final VoidCallback onSkip;
   final VoidCallback onFinish;
+  final bool showSkip;
+  final String heading;
+  final String finishLabel;
 
   @override
   Widget build(BuildContext context) {
@@ -48,6 +55,9 @@ class OnboardingBranchSetupStep extends StatelessWidget {
     return OnboardingScaffold(
       showBack: false,
       showGradient: false,
+      topPadding: AppSpacing.branchSetupTop,
+      bottomPadding: AppSpacing.branchSetupBottom,
+      headerSlotHeight: 48,
       // Header and Finish Setup stay pinned; everything between scrolls, so
       // the button stays visible above the keyboard.
       child: OnboardingStickyLayout(
@@ -74,27 +84,33 @@ class OnboardingBranchSetupStep extends StatelessWidget {
                 ),
               ),
             ),
-            TextButton(
-              onPressed: onSkip,
-              style: TextButton.styleFrom(
-                minimumSize: Size.zero,
-                padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
-                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                foregroundColor: AppColors.ink,
-              ),
-              child: const Text('Skip'),
-            ),
+            if (showSkip)
+              TextButton(
+                onPressed: onSkip,
+                style: TextButton.styleFrom(
+                  minimumSize: Size.zero,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 4,
+                    vertical: 8,
+                  ),
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  foregroundColor: AppColors.ink,
+                ),
+                child: const Text('Skip'),
+              )
+            else
+              const SizedBox(width: 42),
           ],
         ),
         content: [
-          const SizedBox(height: 24),
+          const SizedBox(height: 8),
           Form(
             key: formKey,
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 Text(
-                  'Name your first branch',
+                  heading,
                   textAlign: TextAlign.center,
                   style: Theme.of(context).textTheme.titleLarge
                       ?.copyWith(fontSize: 22, height: 1.2),
@@ -185,7 +201,7 @@ class OnboardingBranchSetupStep extends StatelessWidget {
         ],
         actions: [
           OnboardingGradientButton(
-            label: isSaving ? 'Saving…' : 'Finish Setup',
+            label: isSaving ? 'Saving…' : finishLabel,
             onPressed: canFinish && !isSaving ? onFinish : null,
           ),
           const SizedBox(height: 4),

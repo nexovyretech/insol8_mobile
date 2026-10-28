@@ -276,6 +276,8 @@ class OnboardingScaffold extends StatelessWidget {
     required this.showBack,
     this.showGradient = true,
     this.headerSlotHeight = 42,
+    this.topPadding,
+    this.bottomPadding,
     this.onBack,
   });
 
@@ -283,6 +285,8 @@ class OnboardingScaffold extends StatelessWidget {
   final bool showBack;
   final bool showGradient;
   final double headerSlotHeight;
+  final double? topPadding;
+  final double? bottomPadding;
   final VoidCallback? onBack;
 
   @override
@@ -299,11 +303,11 @@ class OnboardingScaffold extends StatelessWidget {
             )
           : const BoxDecoration(color: AppColors.background),
       child: Padding(
-        padding: const EdgeInsets.fromLTRB(
+        padding: EdgeInsets.fromLTRB(
           AppSpacing.pageHorizontal,
-          AppSpacing.pageVertical,
+          topPadding ?? AppSpacing.pageVertical,
           AppSpacing.pageHorizontal,
-          AppSpacing.pageVertical,
+          bottomPadding ?? AppSpacing.pageVertical,
         ),
         child: Column(
           children: [

@@ -8,16 +8,21 @@ class DashboardBottomNavigation extends StatelessWidget {
     super.key,
     required this.onSelect,
     this.selectedIndex = 0,
+    this.organizationPlan = false,
   });
 
   final ValueChanged<int> onSelect;
   final int selectedIndex;
+  final bool organizationPlan;
 
   @override
   Widget build(BuildContext context) {
-    const items = [
+    final items = [
       ('assets/icons/nav_home.svg', 'Home'),
-      ('assets/icons/nav_devices.svg', 'Devices'),
+      (
+        'assets/icons/nav_devices.svg',
+        organizationPlan ? 'Branches' : 'Devices',
+      ),
       ('assets/icons/nav_activity.svg', 'Analytics'),
       ('assets/icons/nav_settings.svg', 'Settings'),
     ];

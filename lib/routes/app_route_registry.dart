@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import 'package:insol8_mobile/models/device_data.dart';
 import 'package:insol8_mobile/pages/analytics/analytics_page.dart';
+import 'package:insol8_mobile/pages/branches/branches_page.dart';
 import 'package:insol8_mobile/pages/auth/forgot_password/forgot_password_page.dart';
 import 'package:insol8_mobile/pages/auth/get_started_page.dart';
 import 'package:insol8_mobile/pages/auth/login_page.dart';
@@ -14,9 +15,11 @@ import 'package:insol8_mobile/pages/onboarding/onboarding_page.dart';
 import 'package:insol8_mobile/routes/app_routes.dart';
 import 'package:insol8_mobile/services/analytics_repository.dart';
 import 'package:insol8_mobile/services/auth_repository.dart';
+import 'package:insol8_mobile/services/branch_repository.dart';
 import 'package:insol8_mobile/services/dashboard_repository.dart';
 import 'package:insol8_mobile/services/device_repository.dart';
 import 'package:insol8_mobile/services/onboarding_repository.dart';
+import 'package:insol8_mobile/services/subscription_repository.dart';
 
 /// Maps route paths to pages and passes page-specific repository dependencies.
 abstract final class AppRouteRegistry {
@@ -26,29 +29,45 @@ abstract final class AppRouteRegistry {
     DashboardRepository dashboardRepository = const MockDashboardRepository(),
     DeviceRepository deviceRepository = const MockDeviceRepository(),
     AnalyticsRepository analyticsRepository = const MockAnalyticsRepository(),
+    BranchRepository branchRepository = const MockBranchRepository(),
+    SubscriptionRepository subscriptionRepository =
+        const MockSubscriptionRepository(),
   }) => {
     AppRoutes.getStarted: (_) => const GetStartedPage(),
     AppRoutes.login: (_) => LoginPage(authRepository: authRepository),
     AppRoutes.signUp: (_) => SignUpScreen(authRepository: authRepository),
     AppRoutes.forgotPassword: (_) =>
         ForgotPasswordPage(authRepository: authRepository),
-    AppRoutes.onboarding: (_) =>
-        OnboardingPage(repository: onboardingRepository),
+    AppRoutes.onboarding: (_) => OnboardingPage(
+      repository: onboardingRepository,
+      authRepository: authRepository,
+      subscriptionRepository: subscriptionRepository,
+    ),
     // HomePage checks the session itself and returns to getStarted without one.
     AppRoutes.home: (_) => HomePage(
       authRepository: authRepository,
       dashboardRepository: dashboardRepository,
       deviceRepository: deviceRepository,
       onboardingRepository: onboardingRepository,
+      subscriptionRepository: subscriptionRepository,
     ),
     AppRoutes.devices: (_) => DevicesPage(
       authRepository: authRepository,
       deviceRepository: deviceRepository,
       onboardingRepository: onboardingRepository,
+      subscriptionRepository: subscriptionRepository,
+    ),
+    AppRoutes.branches: (_) => BranchesPage(
+      authRepository: authRepository,
+      branchRepository: branchRepository,
+      deviceRepository: deviceRepository,
+      onboardingRepository: onboardingRepository,
+      subscriptionRepository: subscriptionRepository,
     ),
     AppRoutes.analytics: (_) => AnalyticsPage(
       authRepository: authRepository,
       analyticsRepository: analyticsRepository,
+      subscriptionRepository: subscriptionRepository,
     ),
     AppRoutes.deviceSearch: (_) => DeviceSearchPage(
       authRepository: authRepository,
