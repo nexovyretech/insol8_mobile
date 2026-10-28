@@ -21,5 +21,19 @@ class UserProfile {
   final String? email;
   final String? mobileNumber;
 
+  UserProfile copyWith({
+    String? username,
+    String? firstName,
+    String? lastName,
+    String? email,
+    String? mobileNumber,
+  }) => UserProfile(
+    username: username ?? this.username,
+    firstName: firstName ?? this.firstName,
+    lastName: lastName ?? this.lastName,
+    email: email ?? this.email,
+    mobileNumber: mobileNumber ?? this.mobileNumber,
+  );
+
   String get fullName => '$firstName $lastName';
 }

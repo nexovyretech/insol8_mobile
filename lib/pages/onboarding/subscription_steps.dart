@@ -6,6 +6,8 @@ import 'package:insol8_mobile/models/legal_document.dart';
 import 'package:insol8_mobile/models/subscription_plan.dart';
 import 'package:insol8_mobile/pages/legal/legal_document_page.dart';
 import 'package:insol8_mobile/theme/app_colors.dart';
+import 'package:insol8_mobile/theme/app_spacing.dart';
+import 'package:insol8_mobile/widgets/app_page_header.dart';
 
 import 'package:insol8_mobile/pages/onboarding/onboarding_shared_widgets.dart';
 
@@ -28,9 +30,15 @@ class OnboardingSubscriptionStep extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return OnboardingScaffold(
-      showBack: true,
-      onBack: onBack,
+      showBack: false,
+      topPadding: AppSpacing.pageHeaderTop,
+      headerSlotHeight: 0,
       child: OnboardingStickyLayout(
+        header: AppInnerPageHeader(
+          title: '',
+          onBack: onBack,
+          leadingIcon: Icons.arrow_back_ios_new,
+        ),
         content: [
           const SizedBox(height: 16),
           Text(
@@ -158,25 +166,40 @@ class OnboardingSubscriptionPlanLoading extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return OnboardingScaffold(
-      showBack: true,
-      onBack: onBack,
-      child: Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            if (isLoading)
-              const CircularProgressIndicator(color: AppColors.primary)
-            else ...[
-              Text(
-                error ?? 'No subscription plans are available.',
-                textAlign: TextAlign.center,
-                style: Theme.of(context).textTheme.bodyMedium,
+      showBack: false,
+      topPadding: AppSpacing.pageHeaderTop,
+      headerSlotHeight: 0,
+      child: Column(
+        children: [
+          AppInnerPageHeader(
+            title: '',
+            onBack: onBack,
+            leadingIcon: Icons.arrow_back_ios_new,
+          ),
+          Expanded(
+            child: Center(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (isLoading)
+                    const CircularProgressIndicator(color: AppColors.primary)
+                  else ...[
+                    Text(
+                      error ?? 'No subscription plans are available.',
+                      textAlign: TextAlign.center,
+                      style: Theme.of(context).textTheme.bodyMedium,
+                    ),
+                    const SizedBox(height: 16),
+                    TextButton(
+                      onPressed: onRetry,
+                      child: const Text('Try again'),
+                    ),
+                  ],
+                ],
               ),
-              const SizedBox(height: 16),
-              TextButton(onPressed: onRetry, child: const Text('Try again')),
-            ],
-          ],
-        ),
+            ),
+          ),
+        ],
       ),
     );
   }

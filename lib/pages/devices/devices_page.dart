@@ -13,6 +13,7 @@ import 'package:insol8_mobile/services/onboarding_repository.dart';
 import 'package:insol8_mobile/services/subscription_repository.dart';
 import 'package:insol8_mobile/theme/app_colors.dart';
 import 'package:insol8_mobile/theme/app_spacing.dart';
+import 'package:insol8_mobile/widgets/app_page_header.dart';
 
 /// Displays the signed-in user's dryers and their latest reported status.
 class DevicesPage extends StatefulWidget {
@@ -136,33 +137,10 @@ class _DevicesPageState extends State<DevicesPage> {
       return;
     }
     if (index == 3) {
-      _showSettings();
+      Navigator.of(context).pushNamed(AppRoutes.settings);
       return;
     }
     _showMessage('This section will be available when its data is connected.');
-  }
-
-  Future<void> _showSettings() async {
-    await showModalBottomSheet<void>(
-      context: context,
-      showDragHandle: true,
-      builder: (context) => SafeArea(
-        child: ListTile(
-          leading: const Icon(Icons.logout, color: AppColors.primary),
-          title: const Text('Sign out'),
-          onTap: () async {
-            Navigator.pop(context);
-            final navigator = Navigator.of(this.context);
-            await widget.authRepository.signOut();
-            if (!mounted) return;
-            navigator.pushNamedAndRemoveUntil(
-              AppRoutes.getStarted,
-              (_) => false,
-            );
-          },
-        ),
-      ),
-    );
   }
 
   void _openSearch() => Navigator.of(context).pushNamed(AppRoutes.deviceSearch);
@@ -216,12 +194,12 @@ class _DevicesPageState extends State<DevicesPage> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              const SizedBox(height: 18),
+              const SizedBox(height: AppSpacing.pageHeaderTop),
               _DevicesHeader(
                 onAddDevice: _addDevice,
                 onSearchDevices: _openSearch,
               ),
-              const SizedBox(height: 14),
+              const SizedBox(height: AppSpacing.contentGap),
               DeviceFilterBar(
                 selectedFilter: _selectedFilter,
                 counts: _filterCounts,
@@ -300,33 +278,20 @@ class _DevicesHeader extends StatelessWidget {
   final VoidCallback onSearchDevices;
 
   @override
-  Widget build(BuildContext context) => Column(
-    children: [
-      Row(
-        mainAxisAlignment: MainAxisAlignment.end,
-        children: [
-          IconButton(
-            onPressed: onAddDevice,
-            tooltip: 'Add device',
-            visualDensity: VisualDensity.compact,
-            icon: const Icon(Icons.add_circle_outline),
-          ),
-          IconButton(
-            onPressed: onSearchDevices,
-            tooltip: 'Search devices',
-            visualDensity: VisualDensity.compact,
-            icon: const Icon(Icons.search),
-          ),
-        ],
+  Widget build(BuildContext context) => AppPageHeader(
+    title: 'Devices',
+    actions: [
+      IconButton(
+        onPressed: onAddDevice,
+        tooltip: 'Add device',
+        visualDensity: VisualDensity.compact,
+        icon: const Icon(Icons.add_circle_outline),
       ),
-      const SizedBox(height: 4),
-      Align(
-        alignment: Alignment.centerLeft,
-        child: Text(
-          'Devices',
-          style: Theme.of(context).textTheme.titleLarge
-              ?.copyWith(fontSize: 23, fontWeight: FontWeight.w700),
-        ),
+      IconButton(
+        onPressed: onSearchDevices,
+        tooltip: 'Search devices',
+        visualDensity: VisualDensity.compact,
+        icon: const Icon(Icons.search),
       ),
     ],
   );

@@ -5,6 +5,7 @@ import 'package:insol8_mobile/models/sign_up_data.dart';
 import 'package:insol8_mobile/models/user_profile.dart';
 import 'package:insol8_mobile/pages/home/dashboard_bottom_navigation.dart';
 import 'package:insol8_mobile/pages/onboarding/onboarding_page.dart';
+import 'package:insol8_mobile/pages/settings/settings_page.dart';
 import 'package:insol8_mobile/routes/app_routes.dart';
 import 'package:insol8_mobile/services/auth_repository.dart';
 import 'package:insol8_mobile/services/subscription_repository.dart';
@@ -304,7 +305,15 @@ void main() {
           .last,
     );
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Sign out'));
+    expect(find.byType(SettingsPage), findsOneWidget);
+    await tester.scrollUntilVisible(
+      find.text('Logout'),
+      300,
+      scrollable: find.byType(Scrollable).first,
+    );
+    await tester.tap(find.text('Logout'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(FilledButton, 'Log out'));
     await tester.pumpAndSettle();
 
     expect(auth.calls.last, 'signOut');

@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 
 import 'package:insol8_mobile/theme/app_colors.dart';
+import 'package:insol8_mobile/theme/app_spacing.dart';
+import 'package:insol8_mobile/widgets/app_page_header.dart';
 
 import 'package:insol8_mobile/pages/onboarding/onboarding_shared_widgets.dart';
 
@@ -31,6 +33,7 @@ class OnboardingConnectDeviceStep extends StatelessWidget {
     return OnboardingScaffold(
       showBack: false,
       showGradient: false,
+      topPadding: AppSpacing.pageHeaderTop,
       headerSlotHeight: 0,
       child: Column(
         children: [
@@ -163,6 +166,7 @@ class OnboardingDevicePairingLoadingStep extends StatelessWidget {
     return OnboardingScaffold(
       showBack: false,
       showGradient: false,
+      topPadding: AppSpacing.pageHeaderTop,
       headerSlotHeight: 0,
       child: Center(
         child: Column(
@@ -213,6 +217,7 @@ class OnboardingVerifyDeviceStep extends StatelessWidget {
     return OnboardingScaffold(
       showBack: false,
       showGradient: false,
+      topPadding: AppSpacing.pageHeaderTop,
       headerSlotHeight: 0,
       child: OnboardingStickyLayout(
         header: _SetupHeader(
@@ -379,41 +384,22 @@ class _SetupHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return SizedBox(
-      height: 42,
-      child: Row(
-        children: [
-          SizedBox(
-            width: 40,
-            child: IconButton(
-              onPressed: onBack,
-              padding: EdgeInsets.zero,
-              alignment: Alignment.centerLeft,
-              icon: const Icon(Icons.arrow_back_ios_new, size: 18),
-            ),
-          ),
-          Expanded(
-            child: Text(
-              title,
-              textAlign: TextAlign.center,
-              style: Theme.of(context).textTheme.titleSmall
-                  ?.copyWith(fontWeight: FontWeight.w700),
-            ),
-          ),
-          if (showSkip)
-            TextButton(
+    return AppInnerPageHeader(
+      title: title,
+      onBack: onBack,
+      leadingIcon: Icons.arrow_back_ios_new,
+      trailing: showSkip
+          ? TextButton(
               onPressed: onSkip,
               style: TextButton.styleFrom(
                 minimumSize: Size.zero,
-                padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
+                padding: EdgeInsets.zero,
                 tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                foregroundColor: AppColors.ink,
               ),
               child: const Text('Skip'),
             )
-          else
-            const SizedBox(width: 36),
-        ],
-      ),
+          : null,
     );
   }
 }

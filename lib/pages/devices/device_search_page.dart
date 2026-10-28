@@ -8,6 +8,7 @@ import 'package:insol8_mobile/services/auth_repository.dart';
 import 'package:insol8_mobile/services/device_repository.dart';
 import 'package:insol8_mobile/theme/app_colors.dart';
 import 'package:insol8_mobile/theme/app_spacing.dart';
+import 'package:insol8_mobile/widgets/app_page_header.dart';
 
 /// Search page for devices returned by the device repository.
 class DeviceSearchPage extends StatefulWidget {
@@ -111,17 +112,14 @@ class _DeviceSearchPageState extends State<DeviceSearchPage> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              const SizedBox(height: 42),
-              Text(
-                'Search Devices',
-                textAlign: TextAlign.center,
-                style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                  color: AppColors.ink,
-                  fontSize: 24,
-                  fontWeight: FontWeight.w700,
-                ),
+              const SizedBox(height: AppSpacing.pageHeaderTop),
+              AppInnerPageHeader(
+                title: 'Search Devices',
+                titleFontSize: 24,
+                onBack: () => Navigator.of(context).pop(),
+                leadingTooltip: 'Back to devices',
               ),
-              const SizedBox(height: 34),
+              const SizedBox(height: AppSpacing.sectionGap),
               TextField(
                 controller: _searchController,
                 autofocus: true,

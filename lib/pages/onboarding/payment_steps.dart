@@ -3,6 +3,8 @@ import 'package:flutter_svg/flutter_svg.dart';
 
 import 'package:insol8_mobile/models/subscription_plan.dart';
 import 'package:insol8_mobile/theme/app_colors.dart';
+import 'package:insol8_mobile/theme/app_spacing.dart';
+import 'package:insol8_mobile/widgets/app_page_header.dart';
 
 import 'package:insol8_mobile/pages/onboarding/onboarding_shared_widgets.dart';
 
@@ -29,9 +31,15 @@ class OnboardingPaymentStep extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return OnboardingScaffold(
-      showBack: true,
-      onBack: onBack,
+      showBack: false,
+      topPadding: AppSpacing.pageHeaderTop,
+      headerSlotHeight: 0,
       child: OnboardingStickyLayout(
+        header: AppInnerPageHeader(
+          title: '',
+          onBack: onBack,
+          leadingIcon: Icons.arrow_back_ios_new,
+        ),
         content: [
           const SizedBox(height: 20),
           Text(
@@ -345,12 +353,14 @@ class OnboardingPaymentSuccessStep extends StatelessWidget {
     required this.onSkip,
     this.reference,
     this.nextBillingDate,
+    this.skipLabel = 'Skip to Dashboard for now',
   });
 
   final SubscriptionPlan plan;
   final String buttonLabel;
   final VoidCallback onContinue;
   final VoidCallback onSkip;
+  final String? skipLabel;
 
   /// Checkout reference confirmed by the backend.
   final String? reference;
@@ -421,18 +431,19 @@ class OnboardingPaymentSuccessStep extends StatelessWidget {
             fontSize: 14,
           ),
           const SizedBox(height: 8),
-          TextButton(
-            onPressed: onSkip,
-            style: TextButton.styleFrom(
-              foregroundColor: AppColors.primary,
-              textStyle: Theme.of(context).textTheme.bodySmall
-                  ?.copyWith(fontSize: 14, fontWeight: FontWeight.w400),
+          if (skipLabel != null)
+            TextButton(
+              onPressed: onSkip,
+              style: TextButton.styleFrom(
+                foregroundColor: AppColors.primary,
+                textStyle: Theme.of(context).textTheme.bodySmall
+                    ?.copyWith(fontSize: 14, fontWeight: FontWeight.w400),
+              ),
+              child: Text(
+                skipLabel!,
+                style: const TextStyle(fontWeight: FontWeight.w400),
+              ),
             ),
-            child: const Text(
-              'Skip to Dashboard for now',
-              style: TextStyle(fontWeight: FontWeight.w400),
-            ),
-          ),
           const SizedBox(height: 4),
         ],
       ),
