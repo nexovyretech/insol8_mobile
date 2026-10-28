@@ -128,10 +128,8 @@ class _BranchSearchPageState extends State<BranchSearchPage> {
       return Center(
         child: Text(
           'No branches found.',
-          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-            color: AppColors.fieldHint,
-            fontSize: 14,
-          ),
+          style: Theme.of(context).textTheme.bodyMedium
+              ?.copyWith(color: AppColors.fieldHint, fontSize: 14),
         ),
       );
     }
@@ -157,8 +155,8 @@ class _BranchResultCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final subtitle = switch (name.toLowerCase()) {
-      'bagumbong' || 'bagong silang' =>
-        'Caloocan City  |  6 Dryers  |  5 Active Cycles',
+      'bagumbong' ||
+      'bagong silang' => 'Caloocan City  |  6 Dryers  |  5 Active Cycles',
       'camarin' => 'Caloocan City  |  2 Dryers  |  2 Active Cycles',
       _ => 'Available branch',
     };
@@ -205,10 +203,8 @@ class _BranchResultCard extends StatelessWidget {
                       subtitle,
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
-                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: AppColors.fieldHint,
-                        fontSize: 12,
-                      ),
+                      style: Theme.of(context).textTheme.bodySmall
+                          ?.copyWith(color: AppColors.fieldHint, fontSize: 12),
                     ),
                   ],
                 ),
@@ -220,10 +216,8 @@ class _BranchResultCard extends StatelessWidget {
                 children: [
                   Text(
                     'Jane Doe',
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: AppColors.fieldHint,
-                      fontSize: 12,
-                    ),
+                    style: Theme.of(context).textTheme.bodySmall
+                        ?.copyWith(color: AppColors.fieldHint, fontSize: 12),
                   ),
                   const SizedBox(height: 5),
                   const Icon(

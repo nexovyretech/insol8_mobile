@@ -153,9 +153,8 @@ class _DeviceManagementPageState extends State<DeviceManagementPage> {
       PageRouteBuilder<String>(
         transitionDuration: Duration.zero,
         reverseTransitionDuration: Duration.zero,
-        pageBuilder: (context, animation, secondaryAnimation) => BranchSearchPage(
-          branches: details.availableBranches,
-        ),
+        pageBuilder: (context, animation, secondaryAnimation) =>
+            BranchSearchPage(branches: details.availableBranches),
       ),
     );
     if (branch == null || !mounted) return;
