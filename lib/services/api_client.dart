@@ -22,22 +22,52 @@ class ApiException implements Exception {
 /// Calls the InSOL8 HTTP API. Protected routes carry the Cognito access token,
 /// which the API Gateway JWT authorizer verifies.
 class ApiClient {
-  ApiClient({http.Client? client, this.baseUrl = ApiSettings.baseUrl})
-    : _client = client ?? http.Client();
+  ApiClient({
+    http.Client? client,
+    this.baseUrl = ApiSettings.baseUrl,
+    Future<String> Function()? accessToken,
+  }) : _client = client ?? http.Client(),
+       _tokenProvider = accessToken;
 
   final http.Client _client;
   final String baseUrl;
 
+  /// Overrides the Cognito session lookup (tests).
+  final Future<String> Function()? _tokenProvider;
+
   Future<Map<String, dynamic>> get(String path, {bool authenticated = true}) =>
-      _send('GET', path, authenticated: authenticated);
+      _object(_send('GET', path, authenticated: authenticated));
+
+  /// For list routes such as `GET /devices`, whose `data` is an array.
+  Future<List<Map<String, dynamic>>> getList(String path) async {
+    final data = await _send('GET', path, authenticated: true);
+    if (data is! List) {
+      throw const ApiException(
+        200,
+        'BAD_RESPONSE',
+        'Unexpected server response.',
+      );
+    }
+    return data.cast<Map<String, dynamic>>();
+  }
 
   Future<Map<String, dynamic>> post(
     String path,
     Map<String, dynamic> body, {
     bool authenticated = true,
-  }) => _send('POST', path, body: body, authenticated: authenticated);
+  }) => _object(_send('POST', path, body: body, authenticated: authenticated));
 
-  Future<Map<String, dynamic>> _send(
+  Future<Map<String, dynamic>> put(String path, Map<String, dynamic> body) =>
+      _object(_send('PUT', path, body: body, authenticated: true));
+
+  Future<Map<String, dynamic>> delete(String path) =>
+      _object(_send('DELETE', path, authenticated: true));
+
+  Future<Map<String, dynamic>> _object(Future<Object?> data) async =>
+      (await data as Map<String, dynamic>?) ?? const {};
+
+  /// Returns the response's `data`: an object, a list, or null.
+  Future<Object?> _send(
     String method,
     String path, {
     Map<String, dynamic>? body,
@@ -82,7 +112,7 @@ class ApiClient {
     if (response.statusCode >= 200 &&
         response.statusCode < 300 &&
         json['success'] == true) {
-      return (json['data'] as Map<String, dynamic>?) ?? const {};
+      return json['data'];
     }
     final error = json['error'] as Map<String, dynamic>?;
     throw ApiException(
@@ -94,7 +124,14 @@ class ApiClient {
   }
 
   Future<String> _accessToken() async {
-    final session = await Amplify.Auth.fetchAuthSession() as CognitoAuthSession;
-    return session.userPoolTokensResult.value.accessToken.raw;
+    if (_tokenProvider != null) return _tokenProvider();
+    return cognitoAccessToken();
   }
+}
+
+/// The signed-in user's Cognito access token, for the HTTP API and the live
+/// WebSocket.
+Future<String> cognitoAccessToken() async {
+  final session = await Amplify.Auth.fetchAuthSession() as CognitoAuthSession;
+  return session.userPoolTokensResult.value.accessToken.raw;
 }

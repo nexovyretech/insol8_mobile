@@ -44,6 +44,20 @@
                     android:host="signout" />
             </intent-filter>
 
+            <!-- PayMongo checkout returns here (com.insol8.mobile://payment/...).
+                 Kept separate from the sign-in hosts above so payment returns
+                 are never handled as OAuth redirects. -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+
+                <data
+                    android:scheme="com.insol8.mobile"
+                    android:host="payment" />
+            </intent-filter>
+
         </activity>
 
         <!-- Required by Flutter -->

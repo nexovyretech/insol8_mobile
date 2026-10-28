@@ -21,8 +21,8 @@ class AnalyticsData {
     loadsByHour: (json['loadsByHour'] as List<dynamic>)
         .map((value) => (value as num).toDouble())
         .toList(growable: false),
-    solarHeatPercent: (json['solarHeatPercent'] as num).toInt(),
-    backupHeatPercent: (json['backupHeatPercent'] as num).toInt(),
+    solarHeatPercent: (json['solarHeatPercent'] as num?)?.toInt(),
+    backupHeatPercent: (json['backupHeatPercent'] as num?)?.toInt(),
     dryingTimeByPeriod: (json['dryingTimeByPeriod'] as List<dynamic>)
         .map(
           (value) => AnalyticsDuration.fromJson(value as Map<String, dynamic>),
@@ -41,8 +41,10 @@ class AnalyticsData {
   final double moneySavedPhp;
   final double energySavedKwh;
   final List<double> loadsByHour;
-  final int solarHeatPercent;
-  final int backupHeatPercent;
+
+  /// Null until there is enough data to estimate where the heat came from.
+  final int? solarHeatPercent;
+  final int? backupHeatPercent;
   final List<AnalyticsDuration> dryingTimeByPeriod;
   final List<AnalyticsDryerComparison> dryerComparisons;
 }

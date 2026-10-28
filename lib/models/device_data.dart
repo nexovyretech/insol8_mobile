@@ -17,8 +17,8 @@ class DeviceData {
       (status) => status.name == json['status'],
       orElse: () => DeviceStatus.offline,
     ),
-    temperatureCelsius: (json['temperatureCelsius'] as num).toDouble(),
-    batteryPercent: (json['batteryPercent'] as num).toInt(),
+    temperatureCelsius: (json['temperatureCelsius'] as num?)?.toDouble(),
+    batteryPercent: (json['batteryPercent'] as num?)?.toInt(),
     cycleDuration: json['cycleDuration'] as String,
     lastUpdated: json['lastUpdated'] as String,
   );
@@ -26,8 +26,12 @@ class DeviceData {
   final String id;
   final String name;
   final DeviceStatus status;
-  final double temperatureCelsius;
-  final int batteryPercent;
+
+  /// Null until the dryer has sent a chamber temperature.
+  final double? temperatureCelsius;
+
+  /// Null until the battery calculation is defined.
+  final int? batteryPercent;
   final String cycleDuration;
   final String lastUpdated;
 }

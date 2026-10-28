@@ -7,13 +7,28 @@ import 'package:insol8_mobile/pages/home/dashboard_bottom_navigation.dart';
 import 'package:insol8_mobile/pages/onboarding/onboarding_page.dart';
 import 'package:insol8_mobile/routes/app_routes.dart';
 import 'package:insol8_mobile/services/auth_repository.dart';
+import 'package:insol8_mobile/services/subscription_repository.dart';
 import 'package:insol8_mobile/widgets/auth/auth_password_field.dart';
 import 'package:insol8_mobile/widgets/auth/verification_code_input.dart';
 
-Widget _previewApp() => Insol8App(
-  authRepository: UnconfiguredAuthRepository(),
-  initialRoute: AppRoutes.getStarted,
+import 'support/fake_onboarding_repository.dart';
+import 'support/fake_repositories.dart';
+
+Widget _app(AuthRepository auth, String initialRoute) => Insol8App(
+  authRepository: auth,
+  initialRoute: initialRoute,
+  onboardingRepository: const FakeOnboardingRepository(),
+  dashboardRepository: const FakeDashboardRepository(),
+  deviceRepository: const UnusedDeviceRepository(),
+  analyticsRepository: const UnusedAnalyticsRepository(),
+  branchRepository: const UnusedBranchRepository(),
+  subscriptionRepository: const FakeSubscriptionRepository(
+    SubscriptionPlanIds.organization,
+  ),
 );
+
+Widget _previewApp() =>
+    _app(UnconfiguredAuthRepository(), AppRoutes.getStarted);
 
 /// Configured repository double: records calls and fails on demand.
 class _FakeAuthRepository extends UnconfiguredAuthRepository {
@@ -258,9 +273,7 @@ void main() {
       ..signInFailure = const AuthFailure(
         'Incorrect username, email, or password.',
       );
-    await tester.pumpWidget(
-      Insol8App(authRepository: auth, initialRoute: AppRoutes.getStarted),
-    );
+    await tester.pumpWidget(_app(auth, AppRoutes.getStarted));
     await tester.pumpAndSettle();
     await _signInWith(tester, 'WrongPass1');
 
@@ -276,9 +289,7 @@ void main() {
     WidgetTester tester,
   ) async {
     final auth = _FakeAuthRepository();
-    await tester.pumpWidget(
-      Insol8App(authRepository: auth, initialRoute: AppRoutes.getStarted),
-    );
+    await tester.pumpWidget(_app(auth, AppRoutes.getStarted));
     await tester.pumpAndSettle();
     await _signInWith(tester, 'GoodPass1');
 
@@ -304,17 +315,13 @@ void main() {
     WidgetTester tester,
   ) async {
     final auth = _FakeAuthRepository()..signedIn = true;
-    await tester.pumpWidget(
-      Insol8App(authRepository: auth, initialRoute: AppRoutes.home),
-    );
+    await tester.pumpWidget(_app(auth, AppRoutes.home));
     await tester.pumpAndSettle();
     expect(find.text('Hey, Jane!'), findsOneWidget);
 
     auth.signedIn = false;
     await tester.pumpWidget(const SizedBox());
-    await tester.pumpWidget(
-      Insol8App(authRepository: auth, initialRoute: AppRoutes.home),
-    );
+    await tester.pumpWidget(_app(auth, AppRoutes.home));
     await tester.pumpAndSettle();
     expect(find.text('A Smarter Way to Dry'), findsOneWidget);
   });
@@ -323,9 +330,7 @@ void main() {
     WidgetTester tester,
   ) async {
     final auth = _FakeAuthRepository();
-    await tester.pumpWidget(
-      Insol8App(authRepository: auth, initialRoute: AppRoutes.signUp),
-    );
+    await tester.pumpWidget(_app(auth, AppRoutes.signUp));
     await tester.pumpAndSettle();
     final nameFields = find.byType(TextFormField);
     await tester.enterText(nameFields.at(0), 'Jane');
@@ -353,9 +358,7 @@ void main() {
         'That code is incorrect. Check it and try again.',
         isCodeError: true,
       );
-    await tester.pumpWidget(
-      Insol8App(authRepository: auth, initialRoute: AppRoutes.forgotPassword),
-    );
+    await tester.pumpWidget(_app(auth, AppRoutes.forgotPassword));
     await tester.pumpAndSettle();
     await tester.enterText(
       find.byType(TextFormField).first,
@@ -396,9 +399,7 @@ void main() {
     WidgetTester tester,
   ) async {
     final auth = _FakeAuthRepository()..landing = AuthLanding.onboarding;
-    await tester.pumpWidget(
-      Insol8App(authRepository: auth, initialRoute: AppRoutes.getStarted),
-    );
+    await tester.pumpWidget(_app(auth, AppRoutes.getStarted));
     await tester.pumpAndSettle();
     await _tapGoogle(tester);
 
@@ -410,9 +411,7 @@ void main() {
     WidgetTester tester,
   ) async {
     final auth = _FakeAuthRepository()..landing = AuthLanding.home;
-    await tester.pumpWidget(
-      Insol8App(authRepository: auth, initialRoute: AppRoutes.getStarted),
-    );
+    await tester.pumpWidget(_app(auth, AppRoutes.getStarted));
     await tester.pumpAndSettle();
     await _tapGoogle(tester);
     await tester.pumpAndSettle();
@@ -428,9 +427,7 @@ void main() {
           'An account with this email already exists. Sign in with your email and password, or reset your password.';
       final auth = _FakeAuthRepository()
         ..googleFailure = const AuthFailure(message);
-      await tester.pumpWidget(
-        Insol8App(authRepository: auth, initialRoute: AppRoutes.getStarted),
-      );
+      await tester.pumpWidget(_app(auth, AppRoutes.getStarted));
       await tester.pumpAndSettle();
       await _tapGoogle(tester);
       await tester.pumpAndSettle();
@@ -444,9 +441,7 @@ void main() {
     WidgetTester tester,
   ) async {
     final auth = _FakeAuthRepository()..landing = AuthLanding.onboarding;
-    await tester.pumpWidget(
-      Insol8App(authRepository: auth, initialRoute: AppRoutes.getStarted),
-    );
+    await tester.pumpWidget(_app(auth, AppRoutes.getStarted));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Sign In'));
     await tester.pumpAndSettle();
@@ -464,9 +459,7 @@ void main() {
     WidgetTester tester,
   ) async {
     final auth = _FakeAuthRepository();
-    await tester.pumpWidget(
-      Insol8App(authRepository: auth, initialRoute: AppRoutes.signUp),
-    );
+    await tester.pumpWidget(_app(auth, AppRoutes.signUp));
     await tester.pumpAndSettle();
     final names = find.byType(TextFormField);
     await tester.enterText(names.at(0), 'Jane');
@@ -501,9 +494,7 @@ void main() {
     WidgetTester tester,
   ) async {
     final auth = _FakeAuthRepository();
-    await tester.pumpWidget(
-      Insol8App(authRepository: auth, initialRoute: AppRoutes.forgotPassword),
-    );
+    await tester.pumpWidget(_app(auth, AppRoutes.forgotPassword));
     await tester.pumpAndSettle();
     await tester.enterText(
       find.byType(TextFormField).first,

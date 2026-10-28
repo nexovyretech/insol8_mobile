@@ -1,11 +1,7 @@
 class DevicePairingRequest {
-  const DevicePairingRequest({
-    required this.deviceCode,
-    required this.branchName,
-  });
+  const DevicePairingRequest({required this.deviceCode});
 
   final String deviceCode;
-  final String branchName;
 }
 
 class DeviceVerificationRequest {
@@ -18,10 +14,12 @@ class DeviceSetupData {
   const DeviceSetupData({
     required this.deviceCode,
     required this.deviceName,
-    required this.branchName,
+    this.branchId,
   });
 
   final String deviceCode;
   final String deviceName;
-  final String branchName;
+
+  /// The branch created during onboarding; null leaves the device unassigned.
+  final String? branchId;
 }

@@ -1,7 +1,11 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import 'package:insol8_mobile/models/branch_setup_data.dart';
 import 'package:insol8_mobile/models/device_setup_data.dart';
+import 'package:insol8_mobile/models/onboarding_status.dart';
 import 'package:insol8_mobile/models/subscription_plan.dart';
 import 'package:insol8_mobile/pages/onboarding/branch_setup_step.dart';
 import 'package:insol8_mobile/pages/onboarding/device_setup_steps.dart';
@@ -10,9 +14,18 @@ import 'package:insol8_mobile/pages/onboarding/subscription_steps.dart';
 import 'package:insol8_mobile/pages/onboarding/welcome_step.dart';
 import 'package:insol8_mobile/pages/devices/qr_scanner_page.dart';
 import 'package:insol8_mobile/routes/app_routes.dart';
+import 'package:insol8_mobile/services/api_client.dart';
 import 'package:insol8_mobile/services/onboarding_repository.dart';
-import 'package:insol8_mobile/services/auth_repository.dart';
-import 'package:insol8_mobile/services/subscription_repository.dart';
+
+/// Opens the payment provider's checkout page; returns false if it could not.
+typedef CheckoutOpener = Future<bool> Function(Uri checkoutUrl);
+
+// PayMongo's hosted page runs in the browser; when it finishes it returns to
+// com.insol8.mobile://payment/..., which brings the app back to the front.
+// Coming back triggers a check in which the backend asks PayMongo for the
+// payment, so the app moves on to the success page by itself.
+Future<bool> _openInBrowser(Uri url) =>
+    launchUrl(url, mode: LaunchMode.externalApplication);
 
 /// Opens the same device-only registration flow from onboarding or dashboard
 /// actions and returns devices configured during that visit.
@@ -30,29 +43,31 @@ Future<List<DeviceSetupData>?> openDeviceRegistrationFlow(
   ),
 );
 
-/// Post-registration onboarding screens. Payment is intentionally a UI preview
-/// until the team's subscription API and payment gateway are available.
+/// Post-registration onboarding: plan, payment, branch, then devices.
 class OnboardingPage extends StatefulWidget {
   const OnboardingPage({
     super.key,
     required this.repository,
-    this.authRepository,
-    this.subscriptionRepository,
     this.deviceOnly = false,
     this.initialBranchName,
+    this.openCheckout = _openInBrowser,
+    this.paymentPollInterval = const Duration(seconds: 4),
+    this.paymentTimeout = const Duration(minutes: 15),
   });
 
   final OnboardingRepository repository;
-  final AuthRepository? authRepository;
-  final SubscriptionRepository? subscriptionRepository;
   final bool deviceOnly;
   final String? initialBranchName;
+  final CheckoutOpener openCheckout;
+  final Duration paymentPollInterval;
+  final Duration paymentTimeout;
 
   @override
   State<OnboardingPage> createState() => _OnboardingPageState();
 }
 
-class _OnboardingPageState extends State<OnboardingPage> {
+class _OnboardingPageState extends State<OnboardingPage>
+    with WidgetsBindingObserver {
   late int _page;
   int _plan = 0;
   SubscriptionPaymentMethod _paymentMethod = SubscriptionPaymentMethod.gcash;
@@ -72,9 +87,19 @@ class _OnboardingPageState extends State<OnboardingPage> {
   bool _isSavingBranch = false;
   String? _deviceError;
 
+  OnboardingStatus? _status;
+  String? _branchId;
+
+  // Payment confirmation: the reference being waited on and its poll timer.
+  String? _pendingReference;
+  Timer? _paymentPoll;
+  DateTime? _paymentDeadline;
+  bool _isCheckingPayment = false;
+
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _page = widget.deviceOnly ? 7 : 0;
     _branchNameController.text = widget.initialBranchName ?? '';
     if (!widget.deviceOnly) _loadPlans();
@@ -82,6 +107,8 @@ class _OnboardingPageState extends State<OnboardingPage> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _paymentPoll?.cancel();
     _branchNameController.dispose();
     _branchAddressController.dispose();
     _managerFirstNameController.dispose();
@@ -91,22 +118,46 @@ class _OnboardingPageState extends State<OnboardingPage> {
     super.dispose();
   }
 
+  // Returning from the browser is the most likely moment the payment landed.
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed && _pendingReference != null) {
+      _checkPayment();
+    }
+  }
+
+  /// The plan whose features apply: the paid one if any, else the selection.
+  SubscriptionPlan get _activePlan {
+    final paidId = _status?.activePlanId;
+    if (paidId != null) {
+      for (final plan in _plans) {
+        if (plan.id == paidId) return plan;
+      }
+    }
+    return _plans[_plan];
+  }
+
   Future<void> _loadPlans() async {
     setState(() {
       _isLoadingPlans = true;
       _planError = null;
     });
+    final status = _fetchStatusOrNull();
     try {
       final plans = await widget.repository.fetchSubscriptionPlans();
+      final current = await status;
       if (!mounted) return;
       setState(() {
         _plans = plans;
-        final basicPlanIndex = plans.indexWhere(
-          (plan) => plan.id == 'monthly-basic',
+        final preferred = plans.indexWhere(
+          (plan) => plan.id == (current?.activePlanId ?? 'basic'),
         );
-        _plan = basicPlanIndex < 0 ? 0 : basicPlanIndex;
+        _plan = preferred < 0 ? 0 : preferred;
         _isLoadingPlans = false;
+        _status = current;
+        _branchId = current?.primaryBranchId;
       });
+      if (current != null) _resume(current);
     } catch (_) {
       if (!mounted) return;
       setState(() {
@@ -116,57 +167,166 @@ class _OnboardingPageState extends State<OnboardingPage> {
     }
   }
 
+  Future<OnboardingStatus?> _fetchStatusOrNull() async {
+    try {
+      return await widget.repository.fetchOnboardingStatus();
+    } on Exception {
+      return null;
+    }
+  }
+
+  // A user who already paid continues where they left off instead of being
+  // asked to pay again. Only applied while still on the welcome screens.
+  void _resume(OnboardingStatus status) {
+    if (_page > 1 || !status.isSubscriptionActive) return;
+    if (status.complete) {
+      _goHome();
+    } else if (status.primaryBranchId == null) {
+      setState(() => _page = 6);
+    } else if (status.deviceId == null) {
+      setState(() => _page = 7);
+    }
+  }
+
   void _next() {
     FocusScope.of(context).unfocus();
     setState(() => _page++);
   }
 
+  void _showMessage(String message) =>
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text(message)));
+
+  /// Turns a backend error code into something the user can act on.
+  String _messageFor(Object error, String fallback) {
+    if (error is! ApiException) return fallback;
+    return switch (error.code) {
+      'NETWORK' || 'TIMEOUT' => error.message,
+      'DEVICE_NOT_FOUND' =>
+        'We could not find that device ID. Check the code and try again.',
+      'DEVICE_UNAVAILABLE' =>
+        'This device is already linked to another account.',
+      'BRANCH_LIMIT_REACHED' => _branchLimitMessage(),
+      'PLAN_FEATURE_REQUIRED' => error.message,
+      'SUBSCRIPTION_REQUIRED' =>
+        'Your subscription is not active yet. Complete the payment first.',
+      'BRANCH_NOT_FOUND' =>
+        'That branch could not be found. Set up your branch again.',
+      'PAYMENTS_NOT_CONFIGURED' =>
+        'Payments are not available right now. Please try again later.',
+      'UNAUTHORIZED' => 'Your session has expired. Please sign in again.',
+      _ => fallback,
+    };
+  }
+
+  // Names the paid plan's limit and the plan that lifts it, from the catalog.
+  String _branchLimitMessage() {
+    final plan = _activePlan;
+    final max = plan.maxBranches;
+    final limit = max == null
+        ? 'Your plan has reached its branch limit.'
+        : '${plan.name} includes $max ${max == 1 ? 'branch' : 'branches'}.';
+    final upgrade = _plans
+        .where((other) {
+          final otherMax = other.maxBranches;
+          return otherMax == null || (max != null && otherMax > max);
+        })
+        .map((other) => other.name)
+        .firstOrNull;
+    return upgrade == null ? limit : '$limit Upgrade to $upgrade to add more.';
+  }
+
   Future<void> _startPayment() async {
-    setState(() {
-      _page = 4;
-    });
+    setState(() => _page = 4);
     try {
       final session = await widget.repository.createCheckoutSession(
         planId: _plans[_plan].id,
         paymentMethod: _paymentMethod,
       );
-      if (!mounted) return;
-      // The current mock repository returns no checkout URL. A real provider
-      // integration must complete and confirm payment before showing success.
-      if (session.checkoutUrl != null) {
-        setState(() {
-          _page = 3;
-        });
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Payment provider redirect is not configured yet.'),
-          ),
-        );
-        return;
+      final reference = session.reference;
+      if (reference == null) throw const FormatException('No reference');
+      final url = session.checkoutUrl;
+      if (url != null && !await widget.openCheckout(url)) {
+        throw const FormatException('Checkout page did not open');
       }
-      final authRepository = widget.authRepository;
-      final subscriptionRepository = widget.subscriptionRepository;
-      if (authRepository != null && subscriptionRepository != null) {
-        final profile = await authRepository.loadProfile();
-        await subscriptionRepository.savePlanId(
-          accountId: profile.username,
-          planId: _plans[_plan].id,
-        );
-      }
-      setState(() {
-        _page = 5;
-      });
-    } catch (_) {
       if (!mounted) return;
-      setState(() {
-        _page = 3;
-      });
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Could not start checkout. Please try again.'),
-        ),
+      _awaitPayment(reference);
+    } catch (error) {
+      if (!mounted) return;
+      setState(() => _page = 3);
+      _showMessage(
+        _messageFor(error, 'Could not start checkout. Please try again.'),
       );
     }
+  }
+
+  void _awaitPayment(String reference) {
+    _paymentPoll?.cancel();
+    setState(() {
+      _pendingReference = reference;
+      _paymentDeadline = DateTime.now().add(widget.paymentTimeout);
+    });
+    _paymentPoll = Timer.periodic(
+      widget.paymentPollInterval,
+      (_) => _checkPayment(),
+    );
+    _checkPayment();
+  }
+
+  Future<void> _checkPayment({bool userRequested = false}) async {
+    final reference = _pendingReference;
+    if (reference == null || _isCheckingPayment) return;
+    _isCheckingPayment = true;
+    try {
+      // Has the backend check with PayMongo directly, so the payment is
+      // recorded even when the webhook is late. If that check fails, the
+      // status below still reports a payment the webhook already recorded.
+      var paymentConfirmed = false;
+      try {
+        paymentConfirmed = await widget.repository.confirmPayment(reference);
+      } on Exception {
+        // Fall through to the status check.
+      }
+      final status = await widget.repository.fetchOnboardingStatus();
+      if (!mounted || _pendingReference != reference) return;
+      if (paymentConfirmed || status.isPaid(reference)) {
+        _stopWaitingForPayment();
+        setState(() {
+          _status = status;
+          _page = 5;
+        });
+        return;
+      }
+      if (DateTime.now().isAfter(_paymentDeadline!)) {
+        _stopWaitingForPayment();
+        setState(() => _page = 3);
+        _showMessage(
+          'We have not received your payment yet. If you paid, it may take a '
+          'few minutes; try again shortly.',
+        );
+      } else if (userRequested) {
+        _showMessage(
+          'Payment not confirmed yet. It can take a moment after you pay.',
+        );
+      }
+    } catch (error) {
+      if (userRequested && mounted) {
+        _showMessage(_messageFor(error, 'Could not check your payment.'));
+      }
+    } finally {
+      _isCheckingPayment = false;
+    }
+  }
+
+  void _stopWaitingForPayment() {
+    _paymentPoll?.cancel();
+    _paymentPoll = null;
+    _pendingReference = null;
+  }
+
+  void _cancelPayment() {
+    _stopWaitingForPayment();
+    setState(() => _page = 3);
   }
 
   Future<void> _saveBranch() async {
@@ -177,7 +337,7 @@ class _OnboardingPageState extends State<OnboardingPage> {
 
     setState(() => _isSavingBranch = true);
     try {
-      await widget.repository.createBranch(
+      final branchId = await widget.repository.createBranch(
         BranchSetupData(
           name: _branchNameController.text.trim(),
           address: _branchAddressController.text.trim(),
@@ -191,13 +351,17 @@ class _OnboardingPageState extends State<OnboardingPage> {
         ),
       );
       if (!mounted) return;
-      setState(() => _page = 7);
-    } catch (_) {
+      setState(() {
+        _branchId = branchId;
+        _deviceCodeController.clear();
+        _deviceError = null;
+        _isQrScanning = false;
+        _page = 7;
+      });
+    } catch (error) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Could not save this branch. Please retry.'),
-        ),
+      _showMessage(
+        _messageFor(error, 'Could not save this branch. Please retry.'),
       );
     } finally {
       if (mounted) setState(() => _isSavingBranch = false);
@@ -216,18 +380,17 @@ class _OnboardingPageState extends State<OnboardingPage> {
     });
     try {
       await widget.repository.pairDevice(
-        DevicePairingRequest(
-          deviceCode: deviceCode,
-          branchName: _branchNameController.text.trim(),
-        ),
+        DevicePairingRequest(deviceCode: deviceCode),
       );
       if (!mounted) return;
       setState(() => _page = 9);
-    } catch (_) {
+    } catch (error) {
       if (!mounted) return;
       setState(() {
-        _deviceError =
-            'We could not connect this device. Check the ID and retry.';
+        _deviceError = _messageFor(
+          error,
+          'We could not connect this device. Check the ID and retry.',
+        );
         _page = 7;
       });
     }
@@ -298,89 +461,70 @@ class _OnboardingPageState extends State<OnboardingPage> {
       );
       if (!mounted) return;
       setState(() => _page = 10);
-    } catch (_) {
+    } catch (error) {
       if (!mounted) return;
       setState(() {
-        _deviceError =
-            'That device ID could not be verified. Please try again.';
+        _deviceError = _messageFor(
+          error,
+          'That device ID could not be verified. Please try again.',
+        );
         _page = 9;
       });
     }
   }
 
-  Future<void> _finishDeviceSetup() async {
-    if (_deviceNameController.text.trim().isEmpty) {
-      setState(() => _deviceError = 'Enter a name for this device.');
-      return;
-    }
-    setState(() {
-      _deviceError = null;
-    });
-    try {
-      await widget.repository.configureDevice(
-        DeviceSetupData(
-          deviceCode: _deviceCodeController.text.trim(),
-          deviceName: _deviceNameController.text.trim(),
-          branchName: _branchNameController.text.trim(),
-        ),
-      );
-      if (!mounted) return;
-      if (widget.deviceOnly) {
-        _configuredDevices.add(
-          DeviceSetupData(
-            deviceCode: _deviceCodeController.text.trim(),
-            deviceName: _deviceNameController.text.trim(),
-            branchName: _branchNameController.text.trim(),
-          ),
-        );
-        Navigator.of(context)
-            .pop(List<DeviceSetupData>.unmodifiable(_configuredDevices));
-        return;
-      }
+  void _goHome() {
+    if (widget.deviceOnly) {
+      Navigator.of(context)
+          .pop(List<DeviceSetupData>.unmodifiable(_configuredDevices));
+    } else {
       Navigator.of(context)
           .pushNamedAndRemoveUntil(AppRoutes.home, (_) => false);
-    } catch (_) {
-      if (!mounted) return;
-      setState(() {
-        _deviceError = 'Could not save device settings. Please retry.';
-        _page = 10;
-      });
     }
   }
 
-  Future<void> _addAnotherDevice() async {
+  Future<bool> _registerDevice() async {
     if (_deviceNameController.text.trim().isEmpty) {
-      setState(() => _deviceError = 'Enter a device nickname first.');
-      return;
+      setState(() => _deviceError = 'Enter a name for this device.');
+      return false;
     }
+    setState(() => _deviceError = null);
     try {
-      await widget.repository.configureDevice(
-        DeviceSetupData(
-          deviceCode: _deviceCodeController.text.trim(),
-          deviceName: _deviceNameController.text.trim(),
-          branchName: _branchNameController.text.trim(),
-        ),
+      final device = DeviceSetupData(
+        deviceCode: _deviceCodeController.text.trim(),
+        deviceName: _deviceNameController.text.trim(),
+        branchId: _branchId,
       );
-      if (!mounted) return;
-      _configuredDevices.add(
-        DeviceSetupData(
-          deviceCode: _deviceCodeController.text.trim(),
-          deviceName: _deviceNameController.text.trim(),
-          branchName: _branchNameController.text.trim(),
-        ),
-      );
-      _deviceCodeController.clear();
-      _deviceNameController.clear();
-      setState(() {
-        _deviceError = null;
-        _page = 7;
-      });
-    } catch (_) {
-      if (!mounted) return;
-      setState(() {
-        _deviceError = 'Could not save this device. Please retry.';
-      });
+      await widget.repository.configureDevice(device);
+      if (widget.deviceOnly) _configuredDevices.add(device);
+      return true;
+    } catch (error) {
+      if (mounted) {
+        setState(() {
+          _deviceError = _messageFor(
+            error,
+            'Could not save device settings. Please retry.',
+          );
+          _page = 10;
+        });
+      }
+      return false;
     }
+  }
+
+  Future<void> _finishDeviceSetup() async {
+    if (await _registerDevice() && mounted) _goHome();
+  }
+
+  Future<void> _addAnotherDevice() async {
+    if (!await _registerDevice() || !mounted) return;
+    _deviceCodeController.clear();
+    _deviceNameController.clear();
+    setState(() {
+      _deviceError = null;
+      _isQrScanning = false;
+      _page = 7;
+    });
   }
 
   @override
@@ -432,34 +576,36 @@ class _OnboardingPageState extends State<OnboardingPage> {
             3 => OnboardingPaymentStep(
               key: const ValueKey('payment'),
               plan: _plans[_plan],
+              nextBillingDate: (_status ?? const OnboardingStatus())
+                  .nextBillingDateFor(_plans[_plan].id),
               paymentMethod: _paymentMethod,
               onPaymentMethodChanged: (value) =>
                   setState(() => _paymentMethod = value),
               onBack: () => setState(() => _page = 2),
               onContinue: _startPayment,
             ),
-            4 => OnboardingPaymentLoadingStep(
-              key: const ValueKey('payment-loading'),
-            ),
+            4 =>
+              _pendingReference == null
+                  ? const OnboardingPaymentLoadingStep(
+                      key: ValueKey('payment-loading'),
+                    )
+                  : OnboardingPaymentLoadingStep(
+                      key: const ValueKey('payment-waiting'),
+                      title: 'Waiting for your payment',
+                      message:
+                          'Complete the payment in your browser. This screen '
+                          'continues automatically once it is confirmed.',
+                      onCheckAgain: () => _checkPayment(userRequested: true),
+                      onCancel: _cancelPayment,
+                    ),
             5 => OnboardingPaymentSuccessStep(
               key: const ValueKey('payment-success'),
-              plan: _plans[_plan],
-              buttonLabel: _plans[_plan].id == 'monthly-basic'
-                  ? 'Connect Dryer'
-                  : 'Set Up Branch',
-              onContinue: () {
-                final isBasicPlan = _plans[_plan].id == 'monthly-basic';
-                if (isBasicPlan) {
-                  // Start device pairing with an empty serial field each time.
-                  _deviceCodeController.clear();
-                  _deviceError = null;
-                  _isQrScanning = false;
-                }
-                setState(() => _page = isBasicPlan ? 7 : 6);
-              },
-              onSkip: () =>
-                  Navigator.of(context)
-                      .pushNamedAndRemoveUntil(AppRoutes.home, (_) => false),
+              plan: _activePlan,
+              reference: _status?.lastPaidReference,
+              nextBillingDate: _status?.currentPeriodEnd,
+              buttonLabel: 'Set Up Branch',
+              onContinue: () => setState(() => _page = 6),
+              onSkip: _goHome,
             ),
             6 => OnboardingBranchSetupStep(
               key: const ValueKey('branch-setup'),
@@ -471,12 +617,11 @@ class _OnboardingPageState extends State<OnboardingPage> {
               managerLastNameController: _managerLastNameController,
               managerOption: _managerOption,
               isSaving: _isSavingBranch,
+              canAssignManagers: _activePlan.canAssignManagers,
               onManagerOptionChanged: (value) =>
                   setState(() => _managerOption = value),
               onFieldChanged: () => setState(() {}),
-              onSkip: () =>
-                  Navigator.of(context)
-                      .pushNamedAndRemoveUntil(AppRoutes.home, (_) => false),
+              onSkip: _goHome,
               onFinish: _saveBranch,
             ),
             7 => OnboardingConnectDeviceStep(
@@ -491,19 +636,10 @@ class _OnboardingPageState extends State<OnboardingPage> {
                 if (widget.deviceOnly) {
                   Navigator.of(context).pop();
                 } else {
-                  setState(
-                    () => _page = _plans[_plan].id == 'monthly-basic' ? 5 : 6,
-                  );
+                  setState(() => _page = 6);
                 }
               },
-              onSkip: () {
-                if (widget.deviceOnly) {
-                  Navigator.of(context).pop();
-                } else {
-                  Navigator.of(context)
-                      .pushNamedAndRemoveUntil(AppRoutes.home, (_) => false);
-                }
-              },
+              onSkip: _goHome,
               onConnect: _pairDevice,
               onScan: _scanQrCode,
               showSkip: !widget.deviceOnly,
@@ -517,14 +653,7 @@ class _OnboardingPageState extends State<OnboardingPage> {
               deviceCode: _deviceCodeController.text.trim(),
               error: _deviceError,
               onBack: () => setState(() => _page = 7),
-              onSkip: () {
-                if (widget.deviceOnly) {
-                  Navigator.of(context).pop();
-                } else {
-                  Navigator.of(context)
-                      .pushNamedAndRemoveUntil(AppRoutes.home, (_) => false);
-                }
-              },
+              onSkip: _goHome,
               onVerify: _verifyDevice,
               showSkip: !widget.deviceOnly,
             ),
@@ -535,14 +664,7 @@ class _OnboardingPageState extends State<OnboardingPage> {
               error: _deviceError,
               onChanged: () => setState(() => _deviceError = null),
               onBack: () => setState(() => _page = 9),
-              onSkip: () {
-                if (widget.deviceOnly) {
-                  Navigator.of(context).pop();
-                } else {
-                  Navigator.of(context)
-                      .pushNamedAndRemoveUntil(AppRoutes.home, (_) => false);
-                }
-              },
+              onSkip: _goHome,
               onFinish: _finishDeviceSetup,
               onAddAnother: _addAnotherDevice,
               showSkip: !widget.deviceOnly,

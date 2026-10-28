@@ -1,3 +1,5 @@
+import 'package:insol8_mobile/models/branch_setup_data.dart';
+
 /// Display and summary data for a business branch.
 class BranchData {
   const BranchData({
@@ -9,6 +11,7 @@ class BranchData {
     required this.activeCycles,
     required this.isOpen,
     this.deviceIds = const [],
+    this.setup,
   });
 
   factory BranchData.fromJson(Map<String, dynamic> json) => BranchData(
@@ -31,4 +34,8 @@ class BranchData {
   final int activeCycles;
   final bool isOpen;
   final List<String> deviceIds;
+
+  /// What the user entered when adding the branch; `POST /branches` needs the
+  /// manager option, which [managerName] alone cannot express.
+  final BranchSetupData? setup;
 }

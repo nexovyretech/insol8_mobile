@@ -1,11 +1,9 @@
 # Services
 
-Repositories keep page widgets independent from API and mock data.
+Repositories keep page widgets independent from the API. The app only uses the
+API implementations; widget tests inject fakes from `test/support/`.
 
-- `SubscriptionRepository` resolves and stores an account's selected plan. The
-  mock defaults the demo account to Organization and persists onboarding's
-  selected plan locally. `ApiSubscriptionRepository` expects `GET` and `POST`
-  `/me/subscription` with a `planId` field.
-- `BranchRepository` supplies Organization branch records for the Branches
-  list and detail pages. Replace `MockBranchRepository` with the team's branch
-  API implementation when endpoints are available.
+- `SubscriptionRepository` reads the account's paid plan (`activePlanId`) from
+  `GET /onboarding`. The backend records it when a payment is confirmed, so the
+  app never stores a plan itself.
+- `BranchRepository` reads and creates branches through `/branches`.

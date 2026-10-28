@@ -9,11 +9,16 @@ import 'package:insol8_mobile/amplifyconfiguration.dart';
 import 'package:insol8_mobile/routes/app_route_registry.dart';
 import 'package:insol8_mobile/routes/app_routes.dart';
 import 'package:insol8_mobile/services/analytics_repository.dart';
+import 'package:insol8_mobile/services/api_branch_repository.dart';
+import 'package:insol8_mobile/services/api_device_repository.dart';
+import 'package:insol8_mobile/services/api_insights_repository.dart';
+import 'package:insol8_mobile/services/api_onboarding_repository.dart';
 import 'package:insol8_mobile/services/auth_repository.dart';
 import 'package:insol8_mobile/services/branch_repository.dart';
 import 'package:insol8_mobile/services/cognito_auth_repository.dart';
 import 'package:insol8_mobile/services/dashboard_repository.dart';
 import 'package:insol8_mobile/services/device_repository.dart';
+import 'package:insol8_mobile/services/live_telemetry.dart';
 import 'package:insol8_mobile/services/onboarding_repository.dart';
 import 'package:insol8_mobile/services/subscription_repository.dart';
 import 'package:insol8_mobile/theme/app_theme.dart';
@@ -21,18 +26,30 @@ import 'package:insol8_mobile/theme/app_theme.dart';
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  final AuthRepository authRepository = await _configureAuth()
+  final authConfigured = await _configureAuth();
+  final AuthRepository authRepository = authConfigured
       ? CognitoAuthRepository()
       : UnconfiguredAuthRepository();
+  // Onboarding always talks to the API; without Cognito its calls fail with
+  // a sign-in error instead of falling back to sample data.
+  final OnboardingRepository onboardingRepository = ApiOnboardingRepository();
   final initialRoute = await authRepository.hasActiveSession()
       ? AppRoutes.home
       : AppRoutes.getStarted;
 
+  // Like onboarding, these always use the API (no sample-data fallback).
   runApp(
     ProviderScope(
       child: Insol8App(
         authRepository: authRepository,
         initialRoute: initialRoute,
+        onboardingRepository: onboardingRepository,
+        dashboardRepository: ApiDashboardRepository(),
+        deviceRepository: ApiDeviceRepository(),
+        analyticsRepository: ApiAnalyticsRepository(),
+        branchRepository: ApiBranchRepository(),
+        subscriptionRepository: ApiSubscriptionRepository(),
+        liveTelemetry: WebSocketLiveTelemetry(),
       ),
     ),
   );
@@ -57,35 +74,31 @@ class Insol8App extends StatelessWidget {
     super.key,
     required this.authRepository,
     required this.initialRoute,
-    this.onboardingRepository = const MockOnboardingRepository(),
-    this.dashboardRepository = const MockDashboardRepository(),
-    this.deviceRepository = const MockDeviceRepository(),
-    this.analyticsRepository = const MockAnalyticsRepository(),
-    this.branchRepository = const MockBranchRepository(),
-    this.subscriptionRepository = const MockSubscriptionRepository(),
+    required this.onboardingRepository,
+    required this.dashboardRepository,
+    required this.deviceRepository,
+    required this.analyticsRepository,
+    required this.branchRepository,
+    required this.subscriptionRepository,
+    this.liveTelemetry,
   });
 
   final AuthRepository authRepository;
   final String initialRoute;
 
-  /// Inject an API-backed implementation here when the onboarding backend
-  /// is connected.
+  /// [ApiOnboardingRepository] in the app; a fake in widget tests.
   final OnboardingRepository onboardingRepository;
 
-  /// Inject a backend-backed dashboard data source when the API is ready.
   final DashboardRepository dashboardRepository;
-
-  /// Inject an API-backed device data source when the endpoint is ready.
   final DeviceRepository deviceRepository;
-
-  /// Inject an API-backed analytics data source when the endpoint is ready.
   final AnalyticsRepository analyticsRepository;
-
-  /// Replace with an API-backed branch data source when the endpoint is ready.
   final BranchRepository branchRepository;
 
-  /// Resolves the active account tier; the mock preview starts as Organization.
+  /// The account's paid plan, which decides the Basic or Organization screens.
   final SubscriptionRepository subscriptionRepository;
+
+  /// Live dryer readings on the device page; null in widget tests.
+  final LiveTelemetrySource? liveTelemetry;
 
   @override
   Widget build(BuildContext context) {
@@ -102,6 +115,7 @@ class Insol8App extends StatelessWidget {
         analyticsRepository: analyticsRepository,
         branchRepository: branchRepository,
         subscriptionRepository: subscriptionRepository,
+        liveTelemetry: liveTelemetry,
       ),
     );
   }

@@ -26,7 +26,7 @@ class HomePage extends StatefulWidget {
     required this.dashboardRepository,
     required this.deviceRepository,
     required this.onboardingRepository,
-    this.subscriptionRepository = const MockSubscriptionRepository(),
+    required this.subscriptionRepository,
   });
 
   final AuthRepository authRepository;
@@ -63,14 +63,12 @@ class _HomePageState extends State<HomePage> {
     }
     try {
       final profile = await widget.authRepository.loadProfile();
-      final planId = await widget.subscriptionRepository.fetchPlanId(
-        profile.username,
-      );
+      final planId = await widget.subscriptionRepository.fetchActivePlanId();
       final dashboard = await widget.dashboardRepository.fetchDashboard();
       if (!mounted) return;
       setState(() {
         _profile = profile;
-        _organizationPlan = planId == 'monthly-org';
+        _organizationPlan = planId == SubscriptionPlanIds.organization;
         _dashboard = dashboard;
         _isLoading = false;
       });

@@ -18,6 +18,7 @@ import 'package:insol8_mobile/services/auth_repository.dart';
 import 'package:insol8_mobile/services/branch_repository.dart';
 import 'package:insol8_mobile/services/dashboard_repository.dart';
 import 'package:insol8_mobile/services/device_repository.dart';
+import 'package:insol8_mobile/services/live_telemetry.dart';
 import 'package:insol8_mobile/services/onboarding_repository.dart';
 import 'package:insol8_mobile/services/subscription_repository.dart';
 
@@ -26,23 +27,20 @@ abstract final class AppRouteRegistry {
   static Map<String, WidgetBuilder> build(
     AuthRepository authRepository,
     OnboardingRepository onboardingRepository, {
-    DashboardRepository dashboardRepository = const MockDashboardRepository(),
-    DeviceRepository deviceRepository = const MockDeviceRepository(),
-    AnalyticsRepository analyticsRepository = const MockAnalyticsRepository(),
-    BranchRepository branchRepository = const MockBranchRepository(),
-    SubscriptionRepository subscriptionRepository =
-        const MockSubscriptionRepository(),
+    required DashboardRepository dashboardRepository,
+    required DeviceRepository deviceRepository,
+    required AnalyticsRepository analyticsRepository,
+    required BranchRepository branchRepository,
+    required SubscriptionRepository subscriptionRepository,
+    LiveTelemetrySource? liveTelemetry,
   }) => {
     AppRoutes.getStarted: (_) => const GetStartedPage(),
     AppRoutes.login: (_) => LoginPage(authRepository: authRepository),
     AppRoutes.signUp: (_) => SignUpScreen(authRepository: authRepository),
     AppRoutes.forgotPassword: (_) =>
         ForgotPasswordPage(authRepository: authRepository),
-    AppRoutes.onboarding: (_) => OnboardingPage(
-      repository: onboardingRepository,
-      authRepository: authRepository,
-      subscriptionRepository: subscriptionRepository,
-    ),
+    AppRoutes.onboarding: (_) =>
+        OnboardingPage(repository: onboardingRepository),
     // HomePage checks the session itself and returns to getStarted without one.
     AppRoutes.home: (_) => HomePage(
       authRepository: authRepository,
@@ -79,6 +77,7 @@ abstract final class AppRouteRegistry {
       device: ModalRoute.of(context)!.settings.arguments! as DeviceData,
       authRepository: authRepository,
       deviceRepository: deviceRepository,
+      liveTelemetry: liveTelemetry,
     ),
   };
 }

@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:insol8_mobile/models/branch_data.dart';
 import 'package:insol8_mobile/models/branch_setup_data.dart';
 import 'package:insol8_mobile/pages/onboarding/branch_setup_step.dart';
+import 'package:insol8_mobile/services/api_client.dart';
 import 'package:insol8_mobile/services/auth_repository.dart';
 import 'package:insol8_mobile/services/branch_repository.dart';
 import 'package:insol8_mobile/theme/app_colors.dart';
@@ -66,14 +67,26 @@ class _AddBranchPageState extends State<AddBranchPage> {
           dryerCount: 0,
           activeCycles: 0,
           isOpen: true,
+          setup: BranchSetupData(
+            name: name,
+            address: _branchAddressController.text.trim(),
+            managerOption: _managerOption!,
+            managerFirstName: _managerFirstNameController.text.trim(),
+            managerLastName: _managerLastNameController.text.trim(),
+          ),
         ),
       );
       if (mounted) Navigator.of(context).pop(true);
-    } on Exception {
+    } on Exception catch (error) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Could not add this branch. Try again.')),
-      );
+      // Show the server's reason, e.g. the Basic plan's one-branch limit.
+      final message = switch (error) {
+        ApiException(:final message) => message,
+        AuthFailure(:final message) => message,
+        _ => 'Could not add this branch. Try again.',
+      };
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text(message)));
     } finally {
       if (mounted) setState(() => _isSaving = false);
     }

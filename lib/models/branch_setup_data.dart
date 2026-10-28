@@ -1,4 +1,12 @@
-enum BranchManagerOption { myself, newManager }
+enum BranchManagerOption {
+  myself('myself'),
+  newManager('newManager');
+
+  const BranchManagerOption(this.apiValue);
+
+  /// Value sent to `POST /branches`.
+  final String apiValue;
+}
 
 class BranchSetupData {
   const BranchSetupData({
@@ -14,4 +22,14 @@ class BranchSetupData {
   final BranchManagerOption managerOption;
   final String? managerFirstName;
   final String? managerLastName;
+
+  Map<String, dynamic> toJson() => {
+    'name': name,
+    'storeAddress': address,
+    'managerOption': managerOption.apiValue,
+    if (managerOption == BranchManagerOption.newManager) ...{
+      'managerFirstName': managerFirstName,
+      'managerLastName': managerLastName,
+    },
+  };
 }

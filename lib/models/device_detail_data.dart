@@ -14,6 +14,7 @@ class DeviceDetailData {
     required this.runtimeMinutes,
     required this.operatingMode,
     required this.history,
+    this.sessionId,
   });
 
   factory DeviceDetailData.fromJson(Map<String, dynamic> json) =>
@@ -21,12 +22,13 @@ class DeviceDetailData {
         deviceId: json['deviceId'] as String,
         isActive: json['isActive'] as bool,
         timeStarted: json['timeStarted'] as String,
-        chamberTemperatureCelsius: (json['chamberTemperatureCelsius'] as num)
-            .toDouble(),
-        thermalChargePercent: (json['thermalChargePercent'] as num).toDouble(),
-        loadCapacityKg: (json['loadCapacityKg'] as num).toDouble(),
-        timeRemainingMinutes: (json['timeRemainingMinutes'] as num).toInt(),
-        energySavedKwh: (json['energySavedKwh'] as num).toDouble(),
+        chamberTemperatureCelsius: (json['chamberTemperatureCelsius'] as num?)
+            ?.toDouble(),
+        thermalChargePercent: (json['thermalChargePercent'] as num?)
+            ?.toDouble(),
+        loadCapacityKg: (json['loadCapacityKg'] as num?)?.toDouble(),
+        timeRemainingMinutes: (json['timeRemainingMinutes'] as num?)?.toInt(),
+        energySavedKwh: (json['energySavedKwh'] as num?)?.toDouble(),
         fabricType: json['fabricType'] as String?,
         runtimeMinutes: (json['runtimeMinutes'] as num?)?.toInt() ?? 0,
         operatingMode: DeviceOperatingMode.values.firstWhere(
@@ -39,20 +41,51 @@ class DeviceDetailData {
                   DeviceHistoryRecord.fromJson(item as Map<String, dynamic>),
             )
             .toList(growable: false),
+        sessionId: json['sessionId'] as String?,
       );
 
   final String deviceId;
   final bool isActive;
   final String timeStarted;
-  final double chamberTemperatureCelsius;
-  final double thermalChargePercent;
-  final double loadCapacityKg;
-  final int timeRemainingMinutes;
-  final double energySavedKwh;
+
+  /// Latest chamber temperature; null until the dryer has reported one.
+  final double? chamberTemperatureCelsius;
+
+  /// Null until the thermal charge calculation is defined.
+  final double? thermalChargePercent;
+
+  /// Weight of the running load, entered when the cycle starts.
+  final double? loadCapacityKg;
+
+  /// Null when no cycle is running or it has no set runtime.
+  final int? timeRemainingMinutes;
+
+  /// Null until the energy-saved calculation fills it in.
+  final double? energySavedKwh;
   final String? fabricType;
   final int runtimeMinutes;
   final DeviceOperatingMode operatingMode;
   final List<DeviceHistoryRecord> history;
+
+  /// The running drying session, if any.
+  final String? sessionId;
+
+  /// A copy showing a newer live chamber temperature.
+  DeviceDetailData withChamberTemperature(double celsius) => DeviceDetailData(
+    deviceId: deviceId,
+    isActive: isActive,
+    timeStarted: timeStarted,
+    chamberTemperatureCelsius: celsius,
+    thermalChargePercent: thermalChargePercent,
+    loadCapacityKg: loadCapacityKg,
+    timeRemainingMinutes: timeRemainingMinutes,
+    energySavedKwh: energySavedKwh,
+    fabricType: fabricType,
+    runtimeMinutes: runtimeMinutes,
+    operatingMode: operatingMode,
+    history: history,
+    sessionId: sessionId,
+  );
 }
 
 class DeviceHistoryRecord {
@@ -67,21 +100,25 @@ class DeviceHistoryRecord {
 
   factory DeviceHistoryRecord.fromJson(Map<String, dynamic> json) =>
       DeviceHistoryRecord(
-        fabricType: json['fabricType'] as String,
+        fabricType: json['fabricType'] as String?,
         period: DeviceHistoryPeriod.values.firstWhere(
           (period) => period.name == json['period'],
           orElse: () => DeviceHistoryPeriod.today,
         ),
-        temperatureCelsius: (json['temperatureCelsius'] as num).toDouble(),
-        thermalChargePercent: (json['thermalChargePercent'] as num).toDouble(),
+        temperatureCelsius: (json['temperatureCelsius'] as num?)?.toDouble(),
+        thermalChargePercent: (json['thermalChargePercent'] as num?)
+            ?.toDouble(),
         durationMinutes: (json['durationMinutes'] as num).toInt(),
         time: json['time'] as String,
       );
 
-  final String fabricType;
+  /// Null when the cycle was started without a fabric type.
+  final String? fabricType;
   final DeviceHistoryPeriod period;
-  final double temperatureCelsius;
-  final double thermalChargePercent;
+
+  /// Average chamber temperature over the cycle.
+  final double? temperatureCelsius;
+  final double? thermalChargePercent;
   final int durationMinutes;
   final String time;
 }

@@ -15,7 +15,7 @@ class AnalyticsPage extends StatefulWidget {
     super.key,
     required this.authRepository,
     required this.analyticsRepository,
-    this.subscriptionRepository = const MockSubscriptionRepository(),
+    required this.subscriptionRepository,
   });
 
   final AuthRepository authRepository;
@@ -57,12 +57,9 @@ class _AnalyticsPageState extends State<AnalyticsPage> {
         }
         return;
       }
-      final profile = await widget.authRepository.loadProfile();
-      final planId = await widget.subscriptionRepository.fetchPlanId(
-        profile.username,
-      );
+      final planId = await widget.subscriptionRepository.fetchActivePlanId();
       if (!mounted || generation != _loadGeneration) return;
-      _organizationPlan = planId == 'monthly-org';
+      _organizationPlan = planId == SubscriptionPlanIds.organization;
       final data = await widget.analyticsRepository.fetchAnalytics(
         period: period,
       );
@@ -497,43 +494,59 @@ class _EnergySourceCard extends StatelessWidget {
   final AnalyticsData data;
 
   @override
-  Widget build(BuildContext context) => _AnalyticsPanel(
-    title: 'ENERGY SOURCE',
-    child: Column(
-      children: [
-        ClipRRect(
-          borderRadius: BorderRadius.circular(10),
-          child: Row(
-            children: [
+  Widget build(BuildContext context) {
+    final solar = data.solarHeatPercent;
+    final backup = data.backupHeatPercent;
+    return _AnalyticsPanel(
+      title: 'ENERGY SOURCE',
+      child: solar == null || backup == null
+          ? Text(
+              'Not enough drying data yet.',
+              textAlign: TextAlign.center,
+              style: Theme.of(context).textTheme.labelSmall
+                  ?.copyWith(color: AppColors.fieldHint, fontSize: 10),
+            )
+          : _split(context, solar, backup),
+    );
+  }
+
+  Widget _split(BuildContext context, int solar, int backup) => Column(
+    children: [
+      ClipRRect(
+        borderRadius: BorderRadius.circular(10),
+        child: Row(
+          children: [
+            // A zero share takes no space (Expanded needs a positive flex).
+            if (solar > 0)
               Expanded(
-                flex: data.solarHeatPercent,
+                flex: solar,
                 child: Container(height: 10, color: AppColors.primary),
               ),
+            if (backup > 0)
               Expanded(
-                flex: data.backupHeatPercent,
+                flex: backup,
                 child: Container(height: 10, color: const Color(0xFFFFCFB8)),
               ),
-            ],
-          ),
-        ),
-        const SizedBox(height: 8),
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            _PercentLabel(
-              label: 'Free solar heat',
-              percent: data.solarHeatPercent,
-              align: TextAlign.left,
-            ),
-            _PercentLabel(
-              label: 'Backup heat',
-              percent: data.backupHeatPercent,
-              align: TextAlign.right,
-            ),
           ],
         ),
-      ],
-    ),
+      ),
+      const SizedBox(height: 8),
+      Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          _PercentLabel(
+            label: 'Free solar heat',
+            percent: solar,
+            align: TextAlign.left,
+          ),
+          _PercentLabel(
+            label: 'Backup heat',
+            percent: backup,
+            align: TextAlign.right,
+          ),
+        ],
+      ),
+    ],
   );
 }
 
