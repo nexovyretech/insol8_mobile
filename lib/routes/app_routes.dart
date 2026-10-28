@@ -12,4 +12,15 @@ abstract final class AppRoutes {
   static const deviceDetails = '/devices/details';
   static const addDevice = '/devices/add';
   static const analytics = '/analytics';
+  static const settings = '/settings';
+  static const accountProfile = '/settings/account-profile';
+  static const passwordSecurity = '/settings/password-security';
+  static const billingInformation = '/settings/billing-information';
+  static const changePlan = '/settings/change-plan';
+  static const preferences = '/settings/preferences';
+  static const faqs = '/settings/faqs';
+  static const troubleshooting = '/settings/troubleshooting';
+  static const userGuide = '/settings/user-guide';
+  static const reportIssue = '/settings/report-issue';
+  static const aboutUs = '/settings/about-us';
 }

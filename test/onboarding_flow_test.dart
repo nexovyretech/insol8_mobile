@@ -198,47 +198,30 @@ void main() {
     expect(find.text('Pay ₱ 250.00 via GCash'), findsOneWidget);
   });
 
-  testWidgets(
-    'Basic users set up a self-managed branch, then link devices to it',
-    (tester) async {
-      final repo = _FakeRepository();
-      await _pump(tester, repo);
-      await _toPaymentWaiting(tester);
-      repo.markPaid('INSOL8-ref-1');
-      await _advance(tester, 2);
-      await tester.pumpAndSettle();
-      await _tap(tester, 'Set Up Branch');
+  testWidgets('Basic users connect a device without setting up a branch', (
+    tester,
+  ) async {
+    final repo = _FakeRepository();
+    await _pump(tester, repo);
+    await _toPaymentWaiting(tester);
+    repo.markPaid('INSOL8-ref-1');
+    await _advance(tester, 2);
+    await tester.pumpAndSettle();
+    await _tap(tester, 'Connect Dryer');
+    await tester.enterText(find.byType(TextField).first, 'DRYER-0001');
+    await tester.pumpAndSettle();
+    await _tap(tester, 'Verify Device');
+    await _tap(tester, 'Verify Device');
+    await _tap(tester, 'OK');
+    await tester.enterText(find.byType(TextField).first, 'Front dryer');
+    await tester.pumpAndSettle();
+    await _tap(tester, 'Complete Registration');
 
-      expect(
-        find.text(
-          'Assigning a separate manager is available on the Organization plan.',
-        ),
-        findsOneWidget,
-      );
-      await tester.enterText(find.byType(TextFormField).at(0), 'Main Branch');
-      await tester.enterText(find.byType(TextFormField).at(1), '12 Rizal St');
-      // The new-manager option is disabled on Basic.
-      await _tap(tester, 'Add a new manager');
-      expect(find.text('First name'), findsNothing);
-      await _tap(tester, 'Assign myself as manager');
-      await _tap(tester, 'Finish Setup');
-      expect(repo.branch?.managerOption, BranchManagerOption.myself);
-
-      await tester.enterText(find.byType(TextField).first, 'DRYER-0001');
-      await tester.pumpAndSettle();
-      await _tap(tester, 'Verify Device');
-      await _tap(tester, 'Verify Device');
-      await _tap(tester, 'OK');
-      await tester.enterText(find.byType(TextField).first, 'Front dryer');
-      await tester.pumpAndSettle();
-      await _tap(tester, 'Complete Registration');
-
-      expect(repo.device?.deviceCode, 'DRYER-0001');
-      expect(repo.device?.deviceName, 'Front dryer');
-      expect(repo.device?.branchId, 'branch-1');
-      expect(find.text('HOME'), findsOneWidget);
-    },
-  );
+    expect(repo.device?.deviceCode, 'DRYER-0001');
+    expect(repo.device?.deviceName, 'Front dryer');
+    expect(repo.branch, isNull);
+    expect(find.text('HOME'), findsOneWidget);
+  });
 
   testWidgets('shows why a device code was rejected', (tester) async {
     final repo = _FakeRepository()

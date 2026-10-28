@@ -9,6 +9,7 @@ import 'package:insol8_mobile/services/auth_repository.dart';
 import 'package:insol8_mobile/services/subscription_repository.dart';
 import 'package:insol8_mobile/theme/app_colors.dart';
 import 'package:insol8_mobile/theme/app_spacing.dart';
+import 'package:insol8_mobile/widgets/app_page_header.dart';
 
 class AnalyticsPage extends StatefulWidget {
   const AnalyticsPage({
@@ -104,9 +105,7 @@ class _AnalyticsPageState extends State<AnalyticsPage> {
         context,
       ).pushNamed(_organizationPlan ? AppRoutes.branches : AppRoutes.devices);
     } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Settings will be available soon.')),
-      );
+      Navigator.of(context).pushNamed(AppRoutes.settings);
     }
   }
 
@@ -129,9 +128,9 @@ class _AnalyticsPageState extends State<AnalyticsPage> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              const SizedBox(height: 18),
-              Text('Analytics', style: Theme.of(context).textTheme.titleLarge),
-              const SizedBox(height: 12),
+              const SizedBox(height: AppSpacing.pageHeaderTop),
+              const AppPageHeader(title: 'Analytics'),
+              const SizedBox(height: AppSpacing.contentGap),
               _buildPeriodSelector(),
               const SizedBox(height: 12),
               Expanded(child: _buildContent()),

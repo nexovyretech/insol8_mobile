@@ -15,6 +15,7 @@ import 'package:insol8_mobile/services/onboarding_repository.dart';
 import 'package:insol8_mobile/services/subscription_repository.dart';
 import 'package:insol8_mobile/theme/app_colors.dart';
 import 'package:insol8_mobile/theme/app_spacing.dart';
+import 'package:insol8_mobile/widgets/app_page_header.dart';
 
 enum _BranchFilter { all, open, closed }
 
@@ -124,14 +125,9 @@ class _BranchesPageState extends State<BranchesPage> {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               const SizedBox(height: AppSpacing.pageHeaderTop),
-              Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      'Branches',
-                      style: Theme.of(context).textTheme.titleLarge,
-                    ),
-                  ),
+              AppPageHeader(
+                title: 'Branches',
+                actions: [
                   IconButton(
                     tooltip: 'Add branch',
                     onPressed: _showAddBranchDialog,
@@ -144,7 +140,7 @@ class _BranchesPageState extends State<BranchesPage> {
                   ),
                 ],
               ),
-              const SizedBox(height: 8),
+              const SizedBox(height: AppSpacing.contentGap),
               _BranchFilterBar(
                 selected: _filter,
                 counts: {
@@ -171,7 +167,7 @@ class _BranchesPageState extends State<BranchesPage> {
           } else if (index == 2) {
             Navigator.of(context).pushNamed(AppRoutes.analytics);
           } else if (index == 3) {
-            _showSettings();
+            Navigator.of(context).pushNamed(AppRoutes.settings);
           }
         },
       ),
@@ -201,26 +197,6 @@ class _BranchesPageState extends State<BranchesPage> {
       ),
     ),
   );
-
-  Future<void> _showSettings() async {
-    await showModalBottomSheet<void>(
-      context: context,
-      showDragHandle: true,
-      builder: (context) => SafeArea(
-        child: ListTile(
-          leading: const Icon(Icons.logout, color: AppColors.primary),
-          title: const Text('Sign out'),
-          onTap: () async {
-            Navigator.pop(context);
-            await widget.authRepository.signOut();
-            if (!mounted) return;
-            Navigator.of(this.context)
-                .pushNamedAndRemoveUntil(AppRoutes.getStarted, (_) => false);
-          },
-        ),
-      ),
-    );
-  }
 
   Widget _buildBody() {
     if (_loading) return const Center(child: CircularProgressIndicator());

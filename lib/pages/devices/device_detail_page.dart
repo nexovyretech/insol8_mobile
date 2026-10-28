@@ -14,6 +14,7 @@ import 'package:insol8_mobile/services/device_repository.dart';
 import 'package:insol8_mobile/services/live_telemetry.dart';
 import 'package:insol8_mobile/theme/app_colors.dart';
 import 'package:insol8_mobile/theme/app_spacing.dart';
+import 'package:insol8_mobile/widgets/app_page_header.dart';
 
 class DeviceDetailPage extends StatefulWidget {
   const DeviceDetailPage({
@@ -168,17 +169,30 @@ class _DeviceDetailPageState extends State<DeviceDetailPage> {
       body: SafeArea(
         child: Column(
           children: [
-            _DeviceDetailHeader(
-              name: _deviceName,
-              onBack: () => Navigator.of(context).pop(
-                DeviceData(
-                  id: widget.device.id,
-                  name: _deviceName,
-                  status: widget.device.status,
-                  temperatureCelsius: widget.device.temperatureCelsius,
-                  batteryPercent: widget.device.batteryPercent,
-                  cycleDuration: widget.device.cycleDuration,
-                  lastUpdated: widget.device.lastUpdated,
+            Padding(
+              padding: const EdgeInsets.only(
+                left: AppSpacing.pageHorizontal,
+                right: AppSpacing.pageHorizontal,
+                top: AppSpacing.pageHeaderTop,
+              ),
+              child: AppInnerPageHeader(
+                title: _deviceName,
+                onBack: () => Navigator.of(context).pop(
+                  DeviceData(
+                    id: widget.device.id,
+                    name: _deviceName,
+                    status: widget.device.status,
+                    temperatureCelsius: widget.device.temperatureCelsius,
+                    batteryPercent: widget.device.batteryPercent,
+                    cycleDuration: widget.device.cycleDuration,
+                    lastUpdated: widget.device.lastUpdated,
+                  ),
+                ),
+                leadingTooltip: 'Back to devices',
+                trailing: SvgPicture.asset(
+                  'assets/icons/device_management_tune.svg',
+                  width: 18,
+                  height: 18,
                 ),
               ),
             ),
@@ -263,51 +277,6 @@ class _DeviceDetailPageState extends State<DeviceDetailPage> {
       ],
     );
   }
-}
-
-class _DeviceDetailHeader extends StatelessWidget {
-  const _DeviceDetailHeader({required this.name, required this.onBack});
-
-  final String name;
-  final VoidCallback onBack;
-
-  @override
-  Widget build(BuildContext context) => SizedBox(
-    height: 52,
-    child: Row(
-      children: [
-        IconButton(
-          onPressed: onBack,
-          tooltip: 'Back to devices',
-          icon: const Icon(Icons.chevron_left, size: 28),
-        ),
-        Expanded(
-          child: Text(
-            name,
-            textAlign: TextAlign.center,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-              color: AppColors.ink,
-              fontSize: 14,
-              fontWeight: FontWeight.w700,
-            ),
-          ),
-        ),
-        SizedBox(
-          width: 48,
-          height: 48,
-          child: Center(
-            child: SvgPicture.asset(
-              'assets/icons/device_management_tune.svg',
-              width: 18,
-              height: 18,
-            ),
-          ),
-        ),
-      ],
-    ),
-  );
 }
 
 class _DeviceDetailError extends StatelessWidget {

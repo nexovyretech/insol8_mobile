@@ -7,6 +7,7 @@ import 'package:insol8_mobile/pages/devices/branch_search_page.dart';
 import 'package:insol8_mobile/services/device_repository.dart';
 import 'package:insol8_mobile/theme/app_colors.dart';
 import 'package:insol8_mobile/theme/app_spacing.dart';
+import 'package:insol8_mobile/widgets/app_page_header.dart';
 
 class DeviceManagementPage extends StatefulWidget {
   const DeviceManagementPage({
@@ -242,10 +243,18 @@ class _DeviceManagementPageState extends State<DeviceManagementPage> {
       body: SafeArea(
         child: Column(
           children: [
-            _ManagementHeader(
-              onBack: () =>
-                  Navigator.of(context)
-                      .pop(DeviceManagementResult(deviceName: _deviceName)),
+            Padding(
+              padding: const EdgeInsets.only(
+                left: AppSpacing.pageHorizontal,
+                right: AppSpacing.pageHorizontal,
+                top: AppSpacing.pageHeaderTop,
+              ),
+              child: AppInnerPageHeader(
+                title: 'Device Management',
+                onBack: () =>
+                    Navigator.of(context)
+                        .pop(DeviceManagementResult(deviceName: _deviceName)),
+              ),
             ),
             Expanded(child: _buildContent()),
           ],
@@ -367,38 +376,6 @@ class _DeviceManagementPageState extends State<DeviceManagementPage> {
     DeviceStatus.idle => 'Idle',
     DeviceStatus.offline => 'Offline',
   };
-}
-
-class _ManagementHeader extends StatelessWidget {
-  const _ManagementHeader({required this.onBack});
-
-  final VoidCallback onBack;
-
-  @override
-  Widget build(BuildContext context) => SizedBox(
-    height: 52,
-    child: Row(
-      children: [
-        IconButton(
-          onPressed: onBack,
-          tooltip: 'Back',
-          icon: const Icon(Icons.chevron_left, size: 28),
-        ),
-        Expanded(
-          child: Text(
-            'Device Management',
-            textAlign: TextAlign.center,
-            style: Theme.of(context).textTheme.titleSmall?.copyWith(
-              color: AppColors.ink,
-              fontSize: 16,
-              fontWeight: FontWeight.w700,
-            ),
-          ),
-        ),
-        const SizedBox(width: 48),
-      ],
-    ),
-  );
 }
 
 class _ManagementSection extends StatelessWidget {

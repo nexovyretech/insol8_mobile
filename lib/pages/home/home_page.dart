@@ -87,11 +87,6 @@ class _HomePageState extends State<HomePage> {
     });
   }
 
-  Future<void> _signOut() async {
-    await widget.authRepository.signOut();
-    _leave();
-  }
-
   void _leave() {
     if (!mounted) return;
     Navigator.of(context)
@@ -153,23 +148,6 @@ class _HomePageState extends State<HomePage> {
     }
   }
 
-  Future<void> _showSettings() async {
-    await showModalBottomSheet<void>(
-      context: context,
-      showDragHandle: true,
-      builder: (context) => SafeArea(
-        child: ListTile(
-          leading: const Icon(Icons.logout, color: AppColors.primary),
-          title: const Text('Sign out'),
-          onTap: () {
-            Navigator.pop(context);
-            _signOut();
-          },
-        ),
-      ),
-    );
-  }
-
   void _onNavigationSelected(int index) {
     if (index == 0) return;
     if (index == 1) {
@@ -183,7 +161,7 @@ class _HomePageState extends State<HomePage> {
       return;
     }
     if (index == 3) {
-      _showSettings();
+      Navigator.of(context).pushNamed(AppRoutes.settings);
       return;
     }
     _showMessage('This section will be available when its data is connected.');
@@ -210,14 +188,14 @@ class _HomePageState extends State<HomePage> {
             ),
             child: Column(
               children: [
-                const SizedBox(height: 18),
+                const SizedBox(height: AppSpacing.pageHeaderTop),
                 DashboardHeader(
                   firstName: profile?.firstName ?? 'there',
                   onNotifications: () => _showMessage(
                     'Notifications will appear here when connected.',
                   ),
                 ),
-                const SizedBox(height: 22),
+                const SizedBox(height: AppSpacing.sectionGap),
                 Expanded(
                   child: _isLoading
                       ? const Center(child: CircularProgressIndicator())

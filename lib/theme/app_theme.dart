@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import 'package:insol8_mobile/theme/app_colors.dart';
+import 'package:insol8_mobile/theme/app_spacing.dart';
 
 abstract final class AppTheme {
   static ThemeData get light {
@@ -40,6 +41,19 @@ abstract final class AppTheme {
       ),
       textTheme: soraTextTheme,
       fontFamily: GoogleFonts.sora().fontFamily,
+      appBarTheme: AppBarTheme(
+        centerTitle: true,
+        toolbarHeight: AppSpacing.pageHeaderHeight,
+        backgroundColor: AppColors.background,
+        surfaceTintColor: Colors.transparent,
+        elevation: 0,
+        titleTextStyle: GoogleFonts.sora(
+          color: AppColors.ink,
+          fontSize: 18,
+          height: 1.2,
+          fontWeight: FontWeight.w700,
+        ),
+      ),
       pageTransitionsTheme: const PageTransitionsTheme(
         builders: {
           TargetPlatform.android: _InstantPageTransitionsBuilder(),

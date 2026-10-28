@@ -49,6 +49,8 @@ class OnboardingPage extends StatefulWidget {
     super.key,
     required this.repository,
     this.deviceOnly = false,
+    this.pricingOnly = false,
+    this.initialPlanId,
     this.initialBranchName,
     this.openCheckout = _openInBrowser,
     this.paymentPollInterval = const Duration(seconds: 4),
@@ -57,6 +59,8 @@ class OnboardingPage extends StatefulWidget {
 
   final OnboardingRepository repository;
   final bool deviceOnly;
+  final bool pricingOnly;
+  final String? initialPlanId;
   final String? initialBranchName;
   final CheckoutOpener openCheckout;
   final Duration paymentPollInterval;
@@ -100,7 +104,7 @@ class _OnboardingPageState extends State<OnboardingPage>
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    _page = widget.deviceOnly ? 7 : 0;
+    _page = widget.deviceOnly ? 7 : (widget.pricingOnly ? 2 : 0);
     _branchNameController.text = widget.initialBranchName ?? '';
     if (!widget.deviceOnly) _loadPlans();
   }
@@ -149,10 +153,17 @@ class _OnboardingPageState extends State<OnboardingPage>
       if (!mounted) return;
       setState(() {
         _plans = plans;
-        final preferred = plans.indexWhere(
-          (plan) => plan.id == (current?.activePlanId ?? 'basic'),
+        final preferredPlanId =
+            widget.initialPlanId ?? current?.activePlanId ?? 'monthly-basic';
+        final preferredPlanIndex = plans.indexWhere(
+          (plan) => plan.id == preferredPlanId,
         );
-        _plan = preferred < 0 ? 0 : preferred;
+        final basicPlanIndex = plans.indexWhere(
+          (plan) => plan.id == 'monthly-basic' || plan.id == 'basic',
+        );
+        _plan = preferredPlanIndex >= 0
+            ? preferredPlanIndex
+            : (basicPlanIndex < 0 ? 0 : basicPlanIndex);
         _isLoadingPlans = false;
         _status = current;
         _branchId = current?.primaryBranchId;
@@ -234,6 +245,14 @@ class _OnboardingPageState extends State<OnboardingPage>
         .map((other) => other.name)
         .firstOrNull;
     return upgrade == null ? limit : '$limit Upgrade to $upgrade to add more.';
+  }
+
+  void _backFromSubscription() {
+    if (widget.pricingOnly) {
+      Navigator.of(context).pop();
+      return;
+    }
+    setState(() => _page = 1);
   }
 
   Future<void> _startPayment() async {
@@ -563,14 +582,14 @@ class _OnboardingPageState extends State<OnboardingPage>
                       isLoading: _isLoadingPlans,
                       error: _planError,
                       onRetry: _loadPlans,
-                      onBack: () => setState(() => _page = 1),
+                      onBack: _backFromSubscription,
                     )
                   : OnboardingSubscriptionStep(
                       key: const ValueKey('subscription'),
                       plans: _plans,
                       selectedPlan: _plan,
                       onPlanSelected: (value) => setState(() => _plan = value),
-                      onBack: () => setState(() => _page = 1),
+                      onBack: _backFromSubscription,
                       onContinue: _next,
                     ),
             3 => OnboardingPaymentStep(
@@ -603,9 +622,35 @@ class _OnboardingPageState extends State<OnboardingPage>
               plan: _activePlan,
               reference: _status?.lastPaidReference,
               nextBillingDate: _status?.currentPeriodEnd,
-              buttonLabel: 'Set Up Branch',
-              onContinue: () => setState(() => _page = 6),
-              onSkip: _goHome,
+              buttonLabel:
+                  _activePlan.id == 'monthly-basic' || _activePlan.id == 'basic'
+                  ? (widget.pricingOnly ? 'Return to Billing' : 'Connect Dryer')
+                  : (widget.pricingOnly
+                        ? 'Return to Billing'
+                        : 'Set Up Branch'),
+              onContinue: () {
+                if (widget.pricingOnly) {
+                  Navigator.of(context).pop();
+                  return;
+                }
+                final isBasicPlan =
+                    _activePlan.id == 'monthly-basic' ||
+                    _activePlan.id == 'basic';
+                if (isBasicPlan) {
+                  // Start device pairing with an empty serial field each time.
+                  _deviceCodeController.clear();
+                  _deviceError = null;
+                  _isQrScanning = false;
+                }
+                setState(() => _page = isBasicPlan ? 7 : 6);
+              },
+              onSkip: widget.pricingOnly
+                  ? () => Navigator.of(context).pop()
+                  : () => Navigator.of(context)
+                        .pushNamedAndRemoveUntil(AppRoutes.home, (_) => false),
+              skipLabel: widget.pricingOnly
+                  ? null
+                  : 'Skip to Dashboard for now',
             ),
             6 => OnboardingBranchSetupStep(
               key: const ValueKey('branch-setup'),

@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:insol8_mobile/models/legal_document.dart';
 import 'package:insol8_mobile/theme/app_colors.dart';
 import 'package:insol8_mobile/theme/app_spacing.dart';
+import 'package:insol8_mobile/widgets/app_page_header.dart';
 
 class LegalDocumentPage extends StatelessWidget {
   const LegalDocumentPage({super.key, required this.document});
@@ -21,47 +22,28 @@ class LegalDocumentPage extends StatelessWidget {
     );
 
     return Scaffold(
-      backgroundColor: AppColors.surface,
+      backgroundColor: AppColors.background,
       body: SafeArea(
         child: Padding(
-          padding: const EdgeInsets.fromLTRB(
-            AppSpacing.pageHorizontal,
-            AppSpacing.pageVertical,
-            AppSpacing.pageHorizontal,
-            AppSpacing.pageVertical,
+          padding: const EdgeInsets.symmetric(
+            horizontal: AppSpacing.pageHorizontal,
           ),
           child: Column(
             children: [
-              Align(
-                alignment: Alignment.centerLeft,
-                child: IconButton(
-                  onPressed: () => Navigator.of(context).maybePop(),
-                  padding: EdgeInsets.zero,
-                  alignment: Alignment.centerLeft,
-                  constraints: const BoxConstraints.tightFor(
-                    width: 40,
-                    height: 40,
-                  ),
-                  icon: const Icon(Icons.arrow_back_ios_new, size: 20),
-                  color: AppColors.ink,
-                  tooltip: 'Back',
-                ),
+              SizedBox(height: AppSpacing.pageHeaderTop),
+              AppInnerPageHeader(
+                title: document.title,
+                onBack: () => Navigator.of(context).maybePop(),
+                titleFontSize: 18,
               ),
-              const SizedBox(height: 12),
-              Text(
-                document.title,
-                textAlign: TextAlign.center,
-                style: Theme.of(context).textTheme.titleLarge
-                    ?.copyWith(fontSize: 20, height: 1.25),
-              ),
-              const SizedBox(height: 4),
+              const SizedBox(height: 2),
               Text(
                 'Last updated: ${document.lastUpdated}',
                 textAlign: TextAlign.center,
                 style: Theme.of(context).textTheme.bodyMedium
                     ?.copyWith(color: AppColors.body, fontSize: 12),
               ),
-              const SizedBox(height: 20),
+              const SizedBox(height: AppSpacing.sectionGap),
               Expanded(
                 child: ScrollConfiguration(
                   behavior: ScrollConfiguration.of(context)

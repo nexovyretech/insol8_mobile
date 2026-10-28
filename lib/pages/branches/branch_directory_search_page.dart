@@ -8,6 +8,7 @@ import 'package:insol8_mobile/services/device_repository.dart';
 import 'package:insol8_mobile/services/onboarding_repository.dart';
 import 'package:insol8_mobile/theme/app_colors.dart';
 import 'package:insol8_mobile/theme/app_spacing.dart';
+import 'package:insol8_mobile/widgets/app_page_header.dart';
 
 /// Search branches by name or location and open their details.
 class BranchDirectorySearchPage extends StatefulWidget {
@@ -77,17 +78,14 @@ class _BranchDirectorySearchPageState extends State<BranchDirectorySearchPage> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              const SizedBox(height: 42),
-              Text(
-                'Search Branch',
-                textAlign: TextAlign.center,
-                style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                  color: AppColors.ink,
-                  fontSize: 24,
-                  fontWeight: FontWeight.w700,
-                ),
+              const SizedBox(height: AppSpacing.pageHeaderTop),
+              AppInnerPageHeader(
+                title: 'Search Branch',
+                titleFontSize: 24,
+                onBack: () => Navigator.of(context).pop(),
+                leadingTooltip: 'Back to branches',
               ),
-              const SizedBox(height: 34),
+              const SizedBox(height: AppSpacing.sectionGap),
               TextField(
                 controller: _searchController,
                 autofocus: true,

@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:insol8_mobile/models/branch_setup_data.dart';
 import 'package:insol8_mobile/theme/app_colors.dart';
 import 'package:insol8_mobile/theme/app_spacing.dart';
+import 'package:insol8_mobile/widgets/app_page_header.dart';
 
 import 'package:insol8_mobile/pages/onboarding/onboarding_shared_widgets.dart';
 
@@ -59,52 +60,30 @@ class OnboardingBranchSetupStep extends StatelessWidget {
     return OnboardingScaffold(
       showBack: false,
       showGradient: false,
-      topPadding: AppSpacing.branchSetupTop,
+      topPadding: AppSpacing.pageHeaderTop,
       bottomPadding: AppSpacing.branchSetupBottom,
-      headerSlotHeight: 48,
+      // This step renders its own header in the content below. Don't reserve
+      // the scaffold's separate back-button slot above it.
+      headerSlotHeight: 0,
       // Header and Finish Setup stay pinned; everything between scrolls, so
       // the button stays visible above the keyboard.
       child: OnboardingStickyLayout(
-        header: Row(
-          children: [
-            SizedBox(
-              width: 42,
-              child: IconButton(
-                onPressed: onBack,
-                padding: EdgeInsets.zero,
-                alignment: Alignment.centerLeft,
-                icon: const Icon(Icons.arrow_back_ios_new, size: 18),
-                color: AppColors.ink,
-                tooltip: 'Back',
-              ),
-            ),
-            Expanded(
-              child: Text(
-                'Branch Setup',
-                textAlign: TextAlign.center,
-                style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                  color: AppColors.ink,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-            ),
-            if (showSkip)
-              TextButton(
-                onPressed: onSkip,
-                style: TextButton.styleFrom(
-                  minimumSize: Size.zero,
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 4,
-                    vertical: 8,
+        header: AppInnerPageHeader(
+          title: 'Branch Setup',
+          onBack: onBack,
+          leadingIcon: Icons.arrow_back_ios_new,
+          trailing: showSkip
+              ? TextButton(
+                  onPressed: onSkip,
+                  style: TextButton.styleFrom(
+                    minimumSize: Size.zero,
+                    padding: EdgeInsets.zero,
+                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    foregroundColor: AppColors.ink,
                   ),
-                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                  foregroundColor: AppColors.ink,
-                ),
-                child: const Text('Skip'),
-              )
-            else
-              const SizedBox(width: 42),
-          ],
+                  child: const Text('Skip'),
+                )
+              : null,
         ),
         content: [
           const SizedBox(height: 8),

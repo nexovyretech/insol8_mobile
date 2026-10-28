@@ -10,6 +10,7 @@ import 'package:insol8_mobile/services/device_repository.dart';
 import 'package:insol8_mobile/services/onboarding_repository.dart';
 import 'package:insol8_mobile/theme/app_colors.dart';
 import 'package:insol8_mobile/theme/app_spacing.dart';
+import 'package:insol8_mobile/widgets/app_page_header.dart';
 
 class BranchDetailPage extends StatelessWidget {
   const BranchDetailPage({
@@ -80,165 +81,187 @@ class BranchDetailPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Scaffold(
     backgroundColor: AppColors.background,
-    appBar: AppBar(
-      backgroundColor: AppColors.background,
-      title: Text(branch.name, style: Theme.of(context).textTheme.titleSmall),
-      centerTitle: true,
-      actions: [
-        IconButton(
-          tooltip: 'Manage branch',
-          onPressed: () => Navigator.of(context).push(
-            MaterialPageRoute<void>(
-              builder: (_) => BranchManagementPage(branch: branch),
-            ),
-          ),
-          icon: SvgPicture.asset(
-            'assets/icons/device_management_tune.svg',
-            width: 18,
-            height: 18,
-          ),
-        ),
-      ],
-    ),
     body: SafeArea(
-      child: ListView(
-        padding: const EdgeInsets.symmetric(
-          horizontal: AppSpacing.pageHorizontal,
-          vertical: 12,
-        ),
+      child: Column(
         children: [
-          Container(
-            padding: const EdgeInsets.all(18),
-            decoration: BoxDecoration(
-              color: Colors.transparent,
-              borderRadius: BorderRadius.circular(18),
-              border: Border.all(color: AppColors.dashboardBorder),
+          Padding(
+            padding: const EdgeInsets.only(
+              left: AppSpacing.pageHorizontal,
+              right: AppSpacing.pageHorizontal,
+              top: AppSpacing.pageHeaderTop,
             ),
-            child: Column(
-              children: [
-                Row(
-                  children: [
-                    _StatusPill(isOpen: branch.isOpen),
-                    const Spacer(),
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.end,
-                      children: [
-                        Text('Branch Manager', style: _hintStyle(context)),
-                        Text(branch.managerName),
-                      ],
-                    ),
-                  ],
-                ),
-                const Divider(height: 28, color: AppColors.dashboardBorder),
-                Row(
-                  children: [
-                    Expanded(
-                      child: _BranchMetric(
-                        label: 'Chamber Temperature',
-                        value: '68°C',
-                        progress: .68,
-                      ),
-                    ),
-                    Expanded(
-                      child: _BranchMetric(
-                        label: 'Thermal Load Reserved',
-                        value: '84%',
-                        progress: .84,
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 16),
-                Row(
-                  children: [
-                    Expanded(
-                      child: _BranchMetric(
-                        label: 'Daily Solar Share',
-                        value: '91%',
-                        progress: .91,
-                      ),
-                    ),
-                    Expanded(
-                      child: _BranchMetric(
-                        label: 'Active Dryers',
-                        value: '${branch.dryerCount} / ${branch.dryerCount}',
-                        progress: 1,
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 20),
-          const DashboardSectionTitle('Quick Buttons'),
-          Row(
-            children: [
-              Expanded(
-                child: _QuickAction(
-                  label: 'Add Device to Branch',
-                  icon: Icons.add,
-                  onTap: () => _addDeviceToBranch(context),
-                ),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: _QuickAction(
-                  label: 'View Branch Analytics',
-                  icon: Icons.monitor_heart_outlined,
-                  onTap: () =>
-                      Navigator.of(context).pushNamed(AppRoutes.analytics),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 20),
-          const DashboardSectionTitle('Devices'),
-          for (var i = 0; i < branch.deviceIds.length; i++)
-            Material(
-              color: Colors.transparent,
-              child: InkWell(
-                onTap: () =>
-                    _openDeviceManagement(context, branch.deviceIds[i]),
-                borderRadius: BorderRadius.circular(16),
-                child: Container(
-                  margin: const EdgeInsets.only(bottom: 8),
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 16,
-                    vertical: 13,
+            child: AppInnerPageHeader(
+              title: branch.name,
+              onBack: () => Navigator.of(context).pop(),
+              leadingTooltip: 'Back to branches',
+              trailing: IconButton(
+                tooltip: 'Manage branch',
+                onPressed: () => Navigator.of(context).push(
+                  MaterialPageRoute<void>(
+                    builder: (_) => BranchManagementPage(branch: branch),
                   ),
+                ),
+                padding: EdgeInsets.zero,
+                icon: SvgPicture.asset(
+                  'assets/icons/device_management_tune.svg',
+                  width: 18,
+                  height: 18,
+                ),
+              ),
+            ),
+          ),
+          Expanded(
+            child: ListView(
+              padding: const EdgeInsets.fromLTRB(
+                AppSpacing.pageHorizontal,
+                AppSpacing.contentGap,
+                AppSpacing.pageHorizontal,
+                12,
+              ),
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(18),
                   decoration: BoxDecoration(
                     color: Colors.transparent,
-                    borderRadius: BorderRadius.circular(16),
+                    borderRadius: BorderRadius.circular(18),
                     border: Border.all(color: AppColors.dashboardBorder),
                   ),
-                  child: Row(
+                  child: Column(
                     children: [
-                      Expanded(
-                        child: Text(
-                          'DRYER UNIT ${branch.deviceIds[i].split('-').last}',
-                          style: Theme.of(context).textTheme.titleSmall
-                              ?.copyWith(
-                                color: AppColors.primary,
-                                fontWeight: FontWeight.w700,
+                      Row(
+                        children: [
+                          _StatusPill(isOpen: branch.isOpen),
+                          const Spacer(),
+                          Column(
+                            crossAxisAlignment: CrossAxisAlignment.end,
+                            children: [
+                              Text(
+                                'Branch Manager',
+                                style: _hintStyle(context),
                               ),
-                        ),
+                              Text(branch.managerName),
+                            ],
+                          ),
+                        ],
                       ),
-                      Text(
-                        '62°C  |  91%  |  18mins',
-                        style: _hintStyle(context),
+                      const Divider(
+                        height: 28,
+                        color: AppColors.dashboardBorder,
                       ),
-                      const SizedBox(width: 8),
-                      const Icon(
-                        Icons.circle,
-                        color: AppColors.primary,
-                        size: 9,
+                      Row(
+                        children: [
+                          Expanded(
+                            child: _BranchMetric(
+                              label: 'Chamber Temperature',
+                              value: '68°C',
+                              progress: .68,
+                            ),
+                          ),
+                          Expanded(
+                            child: _BranchMetric(
+                              label: 'Thermal Load Reserved',
+                              value: '84%',
+                              progress: .84,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 16),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: _BranchMetric(
+                              label: 'Daily Solar Share',
+                              value: '91%',
+                              progress: .91,
+                            ),
+                          ),
+                          Expanded(
+                            child: _BranchMetric(
+                              label: 'Active Dryers',
+                              value:
+                                  '${branch.dryerCount} / ${branch.dryerCount}',
+                              progress: 1,
+                            ),
+                          ),
+                        ],
                       ),
                     ],
                   ),
                 ),
-              ),
+                const SizedBox(height: 20),
+                const DashboardSectionTitle('Quick Buttons'),
+                Row(
+                  children: [
+                    Expanded(
+                      child: _QuickAction(
+                        label: 'Add Device to Branch',
+                        icon: Icons.add,
+                        onTap: () => _addDeviceToBranch(context),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: _QuickAction(
+                        label: 'View Branch Analytics',
+                        icon: Icons.monitor_heart_outlined,
+                        onTap: () =>
+                            Navigator.of(context)
+                                .pushNamed(AppRoutes.analytics),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 20),
+                const DashboardSectionTitle('Devices'),
+                for (var i = 0; i < branch.deviceIds.length; i++)
+                  Material(
+                    color: Colors.transparent,
+                    child: InkWell(
+                      onTap: () =>
+                          _openDeviceManagement(context, branch.deviceIds[i]),
+                      borderRadius: BorderRadius.circular(16),
+                      child: Container(
+                        margin: const EdgeInsets.only(bottom: 8),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 13,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Colors.transparent,
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(color: AppColors.dashboardBorder),
+                        ),
+                        child: Row(
+                          children: [
+                            Expanded(
+                              child: Text(
+                                'DRYER UNIT ${branch.deviceIds[i].split('-').last}',
+                                style: Theme.of(context).textTheme.titleSmall
+                                    ?.copyWith(
+                                      color: AppColors.primary,
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                              ),
+                            ),
+                            Text(
+                              '62°C  |  91%  |  18mins',
+                              style: _hintStyle(context),
+                            ),
+                            const SizedBox(width: 8),
+                            const Icon(
+                              Icons.circle,
+                              color: AppColors.primary,
+                              size: 9,
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+              ],
             ),
+          ),
         ],
       ),
     ),
@@ -253,9 +276,7 @@ class BranchDetailPage extends StatelessWidget {
         } else if (index == 2) {
           Navigator.of(context).pushNamed(AppRoutes.analytics);
         } else if (index == 3) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Settings will be available soon.')),
-          );
+          Navigator.of(context).pushNamed(AppRoutes.settings);
         }
       },
     ),
@@ -274,72 +295,88 @@ class BranchManagementPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Scaffold(
     backgroundColor: AppColors.background,
-    appBar: AppBar(
-      backgroundColor: AppColors.background,
-      title: Text(
-        'Branch Management',
-        style: Theme.of(context).textTheme.titleSmall,
-      ),
-      centerTitle: true,
-    ),
-    body: ListView(
-      padding: const EdgeInsets.symmetric(
-        horizontal: AppSpacing.pageHorizontal,
-        vertical: 16,
-      ),
-      children: [
-        const DashboardSectionTitle('Branch Details'),
-        _ManagementCard(
-          rows: [
-            _ManagementRow(
-              label: 'Branch Name',
-              value: '${branch.name} BRANCH',
-              editable: true,
+    body: SafeArea(
+      child: Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.only(
+              left: AppSpacing.pageHorizontal,
+              right: AppSpacing.pageHorizontal,
+              top: AppSpacing.pageHeaderTop,
             ),
-            _ManagementRow(
-              label: 'Branch Location',
-              value: branch.address,
-              editable: true,
+            child: AppInnerPageHeader(
+              title: 'Branch Management',
+              onBack: () => Navigator.of(context).pop(),
+              leadingTooltip: 'Back to branch',
             ),
-            _ManagementRow(
-              label: 'Branch Manager',
-              value: branch.managerName,
-              editable: true,
-            ),
-            const _ManagementRow(
-              label: 'Operating Hours',
-              value: '7:00 AM – 9:00 PM',
-              editable: true,
-            ),
-            _ManagementRow(
-              label: 'Status',
-              value: branch.isOpen ? 'Active' : 'Closed',
-            ),
-            _ManagementRow(
-              label: 'Registered Devices',
-              value: '${branch.dryerCount} Devices',
-              editable: true,
-            ),
-          ],
-        ),
-        const SizedBox(height: 20),
-        const DashboardSectionTitle('Danger Zone'),
-        FilledButton(
-          onPressed: branch.isOpen ? () => _confirmClose(context) : null,
-          style: FilledButton.styleFrom(
-            minimumSize: const Size.fromHeight(50),
-            backgroundColor: AppColors.primary,
           ),
-          child: const Text('Close Branch'),
-        ),
-        const SizedBox(height: 8),
-        Text(
-          'Disconnects this branch from your business. Active cycles will stop, and branch logs will be archived.',
-          textAlign: TextAlign.center,
-          style: Theme.of(context).textTheme.bodySmall
-              ?.copyWith(color: AppColors.fieldHint, fontSize: 11),
-        ),
-      ],
+          Expanded(
+            child: ListView(
+              padding: const EdgeInsets.fromLTRB(
+                AppSpacing.pageHorizontal,
+                AppSpacing.contentGap,
+                AppSpacing.pageHorizontal,
+                16,
+              ),
+              children: [
+                const DashboardSectionTitle('Branch Details'),
+                _ManagementCard(
+                  rows: [
+                    _ManagementRow(
+                      label: 'Branch Name',
+                      value: '${branch.name} BRANCH',
+                      editable: true,
+                    ),
+                    _ManagementRow(
+                      label: 'Branch Location',
+                      value: branch.address,
+                      editable: true,
+                    ),
+                    _ManagementRow(
+                      label: 'Branch Manager',
+                      value: branch.managerName,
+                      editable: true,
+                    ),
+                    const _ManagementRow(
+                      label: 'Operating Hours',
+                      value: '7:00 AM – 9:00 PM',
+                      editable: true,
+                    ),
+                    _ManagementRow(
+                      label: 'Status',
+                      value: branch.isOpen ? 'Active' : 'Closed',
+                    ),
+                    _ManagementRow(
+                      label: 'Registered Devices',
+                      value: '${branch.dryerCount} Devices',
+                      editable: true,
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 20),
+                const DashboardSectionTitle('Danger Zone'),
+                FilledButton(
+                  onPressed: branch.isOpen
+                      ? () => _confirmClose(context)
+                      : null,
+                  style: FilledButton.styleFrom(
+                    minimumSize: const Size.fromHeight(50),
+                    backgroundColor: AppColors.primary,
+                  ),
+                  child: const Text('Close Branch'),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'Disconnects this branch from your business. Active cycles will stop, and branch logs will be archived.',
+                  textAlign: TextAlign.center,
+                  style: Theme.of(context).textTheme.bodySmall
+                      ?.copyWith(color: AppColors.fieldHint, fontSize: 11),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
     ),
   );
 
