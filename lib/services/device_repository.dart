@@ -13,6 +13,15 @@ abstract interface class DeviceRepository {
     required DeviceCycleSettings settings,
   });
 
+  /// Starts one drying session with the selected fabric and runtime.
+  Future<void> startDryingCycle({
+    required String deviceId,
+    required DeviceCycleSettings settings,
+  });
+
+  /// Stops the active drying session for [deviceId].
+  Future<void> stopDryingCycle({required String deviceId});
+
   Future<void> updateOperatingMode({
     required String deviceId,
     required DeviceOperatingMode mode,

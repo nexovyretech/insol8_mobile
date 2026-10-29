@@ -14,9 +14,8 @@ class ApiDeviceRepository implements DeviceRepository {
   final ApiClient _api;
   final DateTime Function() _now;
 
-  // The backend has no endpoint for cycle settings or operating mode yet: the
-  // settings are sent with POST /sessions when the start-cycle flow is added,
-  // and operating mode has no device command. Kept in memory until then.
+  // The backend has no endpoint for updating cycle settings or operating mode.
+  // Settings are sent with POST /sessions when a cycle starts.
   static final Map<String, DeviceCycleSettings> _cycleSettings = {};
   static final Map<String, DeviceOperatingMode> _operatingModes = {};
 
@@ -73,6 +72,45 @@ class ApiDeviceRepository implements DeviceRepository {
     required DeviceCycleSettings settings,
   }) async {
     _cycleSettings[deviceId] = settings;
+  }
+
+  @override
+  Future<void> startDryingCycle({
+    required String deviceId,
+    required DeviceCycleSettings settings,
+  }) async {
+    if (settings.fabricType == null || settings.runtimeMinutes <= 0) {
+      throw const ApiException(
+        400,
+        'INVALID_CYCLE_SETTINGS',
+        'Choose a fabric type and runtime before starting a cycle.',
+      );
+    }
+    // Backend contract: POST /sessions accepts a device ID and cycle settings.
+    await _api.post('/sessions', {
+      'deviceId': deviceId,
+      'fabricType': settings.fabricType,
+      'runtimeMinutes': settings.runtimeMinutes,
+    });
+    _cycleSettings[deviceId] = settings;
+  }
+
+  @override
+  Future<void> stopDryingCycle({required String deviceId}) async {
+    final device = await _api.get(_devicePath(deviceId));
+    final sessionId = device['activeSessionId'] as String?;
+    if (sessionId == null) {
+      throw const ApiException(
+        409,
+        'NO_ACTIVE_SESSION',
+        'This device has no active drying session.',
+      );
+    }
+    // Backend contract: stop the running session by its session ID.
+    await _api.post(
+      '/sessions/${Uri.encodeComponent(sessionId)}/stop',
+      const {},
+    );
   }
 
   @override
