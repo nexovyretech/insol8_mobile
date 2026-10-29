@@ -28,8 +28,20 @@ class LiveTelemetryBatch {
   final List<Map<String, dynamic>> readings;
 
   /// The newest chamber temperature in the batch, if any reading has one.
-  double? get latestChamberTemperature => readings.reversed
-      .map((reading) => (reading['temperatureC'] as num?)?.toDouble())
+  double? get latestChamberTemperature => _latest('temperatureC');
+
+  /// The newest energy saved (kWh, cumulative for the job) in the batch.
+  double? get latestEnergySavedKwh => _latest('energySavedKWh');
+
+  /// The newest thermal battery charge as a percentage; the dryer sends it as
+  /// `standalone_state_of_charge`, a fraction from 0 to 1.
+  double? get latestThermalChargePercent {
+    final charge = _latest('standalone_state_of_charge');
+    return charge == null ? null : (charge * 1000).round() / 10;
+  }
+
+  double? _latest(String field) => readings.reversed
+      .map((reading) => (reading[field] as num?)?.toDouble())
       .whereType<double>()
       .firstOrNull;
 }

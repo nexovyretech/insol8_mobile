@@ -134,6 +134,65 @@ class CognitoAuthRepository implements AuthRepository {
   }
 
   @override
+  Future<UserProfile> updateProfile({
+    String? username,
+    String? firstName,
+    String? lastName,
+  }) async {
+    try {
+      return UserProfile.fromJson(
+        await _api.patch('/me', {
+          'username': ?username,
+          'firstName': ?firstName,
+          'lastName': ?lastName,
+        }),
+      );
+    } on ApiException catch (error) {
+      throw _apiFailure(error);
+    }
+  }
+
+  @override
+  Future<void> requestEmailChange(String email) async {
+    // Google accounts get their email from Google on every sign-in, and their
+    // tokens lack the scope Cognito needs to update attributes.
+    final session = await _guard(Amplify.Auth.fetchAuthSession)
+        as CognitoAuthSession;
+    final idToken = session.userPoolTokensResult.value.idToken;
+    if (idToken.claims.customClaims['identities'] != null) {
+      throw const AuthFailure(
+        'This email is managed by your Google account and can’t be changed here.',
+      );
+    }
+    await _guard(
+      () => Amplify.Auth.updateUserAttribute(
+        userAttributeKey: AuthUserAttributeKey.email,
+        value: email.trim().toLowerCase(),
+      ),
+    );
+  }
+
+  @override
+  Future<UserProfile> confirmEmailChange({
+    required String email,
+    required String code,
+  }) async {
+    await _guard(
+      () => Amplify.Auth.confirmUserAttribute(
+        userAttributeKey: AuthUserAttributeKey.email,
+        confirmationCode: code.trim(),
+      ),
+    );
+    try {
+      return UserProfile.fromJson(
+        await _api.patch('/me', {'email': email.trim().toLowerCase()}),
+      );
+    } on ApiException catch (error) {
+      throw _apiFailure(error);
+    }
+  }
+
+  @override
   Future<void> requestVerificationCode({
     required String contact,
     required SignUpContactMethod method,
@@ -489,6 +548,8 @@ class CognitoAuthRepository implements AuthRepository {
         0 => error.message,
         401 => 'Your session has expired. Please sign in again.',
         400 => 'Some of your details aren’t valid. Check them and try again.',
+        409 when error.code == 'EMAIL_NOT_VERIFIED' =>
+          'Your new email isn’t verified yet. Please request a new code.',
         409 => 'That username is already taken. Try another one.',
         _ => 'We couldn’t reach inSOL8 right now. Please try again.',
       });

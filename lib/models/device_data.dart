@@ -8,7 +8,11 @@ class DeviceData {
     required this.batteryPercent,
     required this.cycleDuration,
     required this.lastUpdated,
+    this.maxLoadKg = defaultMaxLoadKg,
   });
+
+  /// Load capacity of the current dryer model; the API sends each dryer's own.
+  static const defaultMaxLoadKg = 8.0;
 
   factory DeviceData.fromJson(Map<String, dynamic> json) => DeviceData(
     id: json['id'] as String,
@@ -21,6 +25,7 @@ class DeviceData {
     batteryPercent: (json['batteryPercent'] as num?)?.toInt(),
     cycleDuration: json['cycleDuration'] as String,
     lastUpdated: json['lastUpdated'] as String,
+    maxLoadKg: (json['maxLoadKg'] as num?)?.toDouble() ?? defaultMaxLoadKg,
   );
 
   final String id;
@@ -34,6 +39,9 @@ class DeviceData {
   final int? batteryPercent;
   final String cycleDuration;
   final String lastUpdated;
+
+  /// The most laundry (kg) this dryer can hold in one job.
+  final double maxLoadKg;
 }
 
 enum DeviceStatus { active, idle, offline }

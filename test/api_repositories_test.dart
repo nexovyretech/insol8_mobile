@@ -69,6 +69,37 @@ Map<String, dynamic> _device({
 
 void main() {
   group('ApiDeviceRepository', () {
+    test('starts a job with its load and reads each dryer\'s limit', () async {
+      final (api, calls) = _api(
+        (call) => call.path == '/devices'
+            ? [
+                {..._device(), 'maxLoadKg': 8},
+                _device(id: 'DRYER-0002'),
+              ]
+            : {'sessionId': 's1'},
+      );
+      final repository = ApiDeviceRepository(apiClient: api);
+      final devices = await repository.fetchDevices();
+      expect(devices.map((device) => device.maxLoadKg), [8, 8]);
+
+      await repository.startDryingCycle(
+        deviceId: 'DRYER-0001',
+        settings: const DeviceCycleSettings(
+          fabricType: 'Cotton',
+          runtimeMinutes: 30,
+          loadKg: 6.5,
+        ),
+      );
+      expect(calls.last.method, 'POST');
+      expect(calls.last.path, '/sessions');
+      expect(calls.last.body, {
+        'deviceId': 'DRYER-0001',
+        'fabricType': 'Cotton',
+        'runtimeMinutes': 30,
+        'loadKg': 6.5,
+      });
+    });
+
     test('maps the device list, including status and cycle time', () async {
       final (api, calls) = _api(
         (_) => [
@@ -171,7 +202,25 @@ void main() {
       expect(details.isActive, isFalse);
       expect(details.timeStarted, '—');
       expect(details.chamberTemperatureCelsius, isNull);
+      expect(details.energySavedKwh, isNull);
     });
+
+    test(
+      'shows the energy saved the dryer last reported, without a session',
+      () async {
+        final (api, _) = _api(
+          (call) => call.path.startsWith('/sessions')
+              ? []
+              : _device(
+                  lastReading: {'temperatureC': 31.2, 'energySavedKWh': 0.527},
+                ),
+        );
+        final details = await ApiDeviceRepository(apiClient: api)
+            .fetchDeviceDetails('DRYER-0001');
+        expect(details.chamberTemperatureCelsius, 31.2);
+        expect(details.energySavedKwh, 0.527);
+      },
+    );
 
     test('renames, reassigns by branch name, and unregisters', () async {
       final (api, calls) = _api(

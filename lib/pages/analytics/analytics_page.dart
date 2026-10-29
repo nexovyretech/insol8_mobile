@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:insol8_mobile/models/analytics_data.dart';
 import 'package:insol8_mobile/pages/home/dashboard_bottom_navigation.dart';
 import 'package:insol8_mobile/routes/app_routes.dart';
+import 'package:insol8_mobile/services/analytics_report.dart';
 import 'package:insol8_mobile/services/analytics_repository.dart';
 import 'package:insol8_mobile/services/auth_repository.dart';
 import 'package:insol8_mobile/services/subscription_repository.dart';
@@ -17,11 +18,19 @@ class AnalyticsPage extends StatefulWidget {
     required this.authRepository,
     required this.analyticsRepository,
     required this.subscriptionRepository,
+    this.shareReport = shareAnalyticsReport,
   });
 
   final AuthRepository authRepository;
   final AnalyticsRepository analyticsRepository;
   final SubscriptionRepository subscriptionRepository;
+
+  /// Creates and shares the PDF report; replaceable in tests.
+  final Future<void> Function({
+    required AnalyticsData data,
+    required AnalyticsPeriod period,
+  })
+  shareReport;
 
   @override
   State<AnalyticsPage> createState() => _AnalyticsPageState();
@@ -34,6 +43,7 @@ class _AnalyticsPageState extends State<AnalyticsPage> {
   bool _loading = true;
   int _loadGeneration = 0;
   bool _organizationPlan = true;
+  bool _exporting = false;
 
   @override
   void initState() {
@@ -83,16 +93,22 @@ class _AnalyticsPageState extends State<AnalyticsPage> {
     await _load();
   }
 
-  void _downloadReport() {
-    ScaffoldMessenger.of(context)
-      ..hideCurrentSnackBar()
-      ..showSnackBar(
-        const SnackBar(
-          content: Text(
-            'Report export will be available when analytics export is connected.',
-          ),
-        ),
-      );
+  Future<void> _downloadReport() async {
+    final data = _data;
+    if (data == null || _exporting) return;
+    setState(() => _exporting = true);
+    try {
+      await widget.shareReport(data: data, period: _period);
+    } on Exception {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(
+          const SnackBar(content: Text('We couldn’t create the report.')),
+        );
+    } finally {
+      if (mounted) setState(() => _exporting = false);
+    }
   }
 
   void _onNavigationSelected(int index) {
@@ -163,11 +179,7 @@ class _AnalyticsPageState extends State<AnalyticsPage> {
                 borderRadius: BorderRadius.circular(20),
               ),
               child: Text(
-                switch (period) {
-                  AnalyticsPeriod.today => 'Today',
-                  AnalyticsPeriod.thisWeek => 'This Week',
-                  AnalyticsPeriod.thisMonth => 'This Month',
-                },
+                analyticsPeriodLabel(period),
                 style: Theme.of(context).textTheme.bodySmall?.copyWith(
                   color: _period == period
                       ? AppColors.ink
@@ -208,7 +220,7 @@ class _AnalyticsPageState extends State<AnalyticsPage> {
         padding: const EdgeInsets.only(bottom: 16),
         children: [
           if (_loading) const LinearProgressIndicator(minHeight: 2),
-          _MetricCards(data: data),
+          _MetricCards(data: data, period: _period),
           const SizedBox(height: 8),
           _LoadsByHourCard(values: data.loadsByHour),
           const SizedBox(height: 8),
@@ -223,9 +235,19 @@ class _AnalyticsPageState extends State<AnalyticsPage> {
             child: SizedBox(
               height: 48,
               child: ElevatedButton.icon(
-                onPressed: _downloadReport,
-                icon: const Icon(Icons.download_rounded, size: 18),
-                label: const Text('Download report'),
+                onPressed: _exporting || _loading ? null : _downloadReport,
+                icon: _exporting
+                    ? const SizedBox.square(
+                        dimension: 16,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: Colors.white,
+                        ),
+                      )
+                    : const Icon(Icons.download_rounded, size: 18),
+                label: Text(
+                  _exporting ? 'Preparing report…' : 'Download report',
+                ),
                 style: ElevatedButton.styleFrom(
                   foregroundColor: Colors.white,
                   backgroundColor: AppColors.primary,
@@ -245,9 +267,16 @@ class _AnalyticsPageState extends State<AnalyticsPage> {
 }
 
 class _MetricCards extends StatelessWidget {
-  const _MetricCards({required this.data});
+  const _MetricCards({required this.data, required this.period});
 
   final AnalyticsData data;
+  final AnalyticsPeriod period;
+
+  String get _when => switch (period) {
+    AnalyticsPeriod.today => 'today',
+    AnalyticsPeriod.thisWeek => 'this week',
+    AnalyticsPeriod.thisMonth => 'this month',
+  };
 
   @override
   Widget build(BuildContext context) => GridView.builder(
@@ -263,15 +292,15 @@ class _MetricCards extends StatelessWidget {
     itemBuilder: (context, index) => _MetricCard(
       metric: switch (index) {
         0 => _AnalyticsMetric(
-          label: 'Loads dried today',
+          label: 'Loads dried $_when',
           value: '${data.loadsDried}',
-          note: 'Up yesterday',
+          note: 'Finished jobs',
           icon: Icons.local_laundry_service_outlined,
         ),
         1 => _AnalyticsMetric(
           label: 'Avg. drying time',
           value: '${data.averageDryingHours.toStringAsFixed(2)}hr/s',
-          note: 'Faster than yesterday',
+          note: 'Per finished job',
           icon: Icons.timer_outlined,
         ),
         2 => _AnalyticsMetric(
@@ -281,7 +310,7 @@ class _MetricCards extends StatelessWidget {
           icon: Icons.payments_outlined,
         ),
         _ => _AnalyticsMetric(
-          label: 'Energy saved today',
+          label: 'Energy saved $_when',
           value: '${data.energySavedKwh.round()} kWh',
           note: 'Free from the sun',
           icon: Icons.bolt_outlined,
@@ -389,7 +418,6 @@ class _LoadsByHourCard extends StatelessWidget {
         ? 1.0
         : values.reduce((a, b) => a > b ? a : b);
     final peakIndex = values.isEmpty ? 0 : values.indexOf(maxValue);
-    final peakHour = (peakIndex + 8) % 12 == 0 ? 12 : (peakIndex + 8) % 12;
     return Container(
       height: 194,
       padding: const EdgeInsets.fromLTRB(12, 12, 12, 8),
@@ -476,7 +504,8 @@ class _LoadsByHourCard extends StatelessWidget {
           const SizedBox(height: 5),
           Center(
             child: Text(
-              'Peak hour: ${peakHour}AM (${maxValue.round()} loads)',
+              'Peak hour: ${chartHourLabel(peakIndex)} '
+              '(${maxValue.round()} loads)',
               style: Theme.of(context).textTheme.labelSmall
                   ?.copyWith(color: AppColors.sectionLabel, fontSize: 9),
             ),

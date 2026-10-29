@@ -48,6 +48,10 @@ class _DeviceDetailPageState extends State<DeviceDetailPage> {
   bool _isLoading = true;
   StreamSubscription<LiveTelemetryBatch>? _liveUpdates;
 
+  /// The session ID the dryer reported in its previous live message.
+  String? _liveSessionId;
+  bool _hasLiveMessage = false;
+
   @override
   void initState() {
     super.initState();
@@ -73,14 +77,24 @@ class _DeviceDetailPageState extends State<DeviceDetailPage> {
   void _applyLiveBatch(LiveTelemetryBatch batch) {
     final details = _details;
     if (!mounted || details == null) return;
-    // A cycle started or ended since the page loaded: reload its details.
-    if (batch.sessionId != details.sessionId) {
+    // Reload only when the dryer's session changes between messages (a cycle
+    // started or ended). Comparing with the loaded session instead would
+    // reload on every message from a dryer reporting a session the backend
+    // did not start.
+    final sessionChanged = _hasLiveMessage && batch.sessionId != _liveSessionId;
+    _hasLiveMessage = true;
+    _liveSessionId = batch.sessionId;
+    if (sessionChanged) {
       _loadDetails();
       return;
     }
-    final temperature = batch.latestChamberTemperature;
-    if (temperature == null) return;
-    setState(() => _details = details.withChamberTemperature(temperature));
+    setState(
+      () => _details = details.withLiveReading(
+        chamberTemperatureCelsius: batch.latestChamberTemperature,
+        thermalChargePercent: batch.latestThermalChargePercent,
+        energySavedKwh: batch.latestEnergySavedKwh,
+      ),
+    );
   }
 
   Future<void> _loadDetails() async {
@@ -186,6 +200,7 @@ class _DeviceDetailPageState extends State<DeviceDetailPage> {
                     batteryPercent: widget.device.batteryPercent,
                     cycleDuration: widget.device.cycleDuration,
                     lastUpdated: widget.device.lastUpdated,
+                    maxLoadKg: widget.device.maxLoadKg,
                   ),
                 ),
                 leadingTooltip: 'Back to devices',
@@ -249,34 +264,41 @@ class _DeviceDetailPageState extends State<DeviceDetailPage> {
     }
 
     final details = _details!;
-    return ListView(
-      padding: const EdgeInsets.fromLTRB(
-        AppSpacing.pageHorizontal,
-        12,
-        AppSpacing.pageHorizontal,
-        18,
-      ),
-      children: [
-        DeviceSummaryCard(details: details),
-        const SizedBox(height: 16),
-        DeviceCycleControlPanel(
-          fabricType: _fabricType,
-          runtimeMinutes: _runtimeMinutes,
-          onFabricChanged: (fabricType) =>
-              _updateCycleSettings(fabricType: fabricType),
-          onRuntimeChanged: (minutes) =>
-              _updateCycleSettings(runtimeMinutes: minutes),
-        ),
-        const SizedBox(height: 16),
-        DeviceHistorySection(
-          records: details.history,
-          selectedPeriod: _selectedPeriod,
-          onPeriodSelected: (period) =>
-              setState(() => _selectedPeriod = period),
-        ),
-      ],
+    // Pull down to reload the device, its running job and its history.
+    return RefreshIndicator(
+      onRefresh: _loadDetails,
+      child: _buildDetails(details),
     );
   }
+
+  Widget _buildDetails(DeviceDetailData details) => ListView(
+    // Lets the pull work even when everything fits on screen.
+    physics: const AlwaysScrollableScrollPhysics(),
+    padding: const EdgeInsets.fromLTRB(
+      AppSpacing.pageHorizontal,
+      12,
+      AppSpacing.pageHorizontal,
+      18,
+    ),
+    children: [
+      DeviceSummaryCard(details: details),
+      const SizedBox(height: 16),
+      DeviceCycleControlPanel(
+        fabricType: _fabricType,
+        runtimeMinutes: _runtimeMinutes,
+        onFabricChanged: (fabricType) =>
+            _updateCycleSettings(fabricType: fabricType),
+        onRuntimeChanged: (minutes) =>
+            _updateCycleSettings(runtimeMinutes: minutes),
+      ),
+      const SizedBox(height: 16),
+      DeviceHistorySection(
+        records: details.history,
+        selectedPeriod: _selectedPeriod,
+        onPeriodSelected: (period) => setState(() => _selectedPeriod = period),
+      ),
+    ],
+  );
 }
 
 class _DeviceDetailError extends StatelessWidget {
