@@ -171,7 +171,25 @@ void main() {
       expect(details.isActive, isFalse);
       expect(details.timeStarted, '—');
       expect(details.chamberTemperatureCelsius, isNull);
+      expect(details.energySavedKwh, isNull);
     });
+
+    test(
+      'shows the energy saved the dryer last reported, without a session',
+      () async {
+        final (api, _) = _api(
+          (call) => call.path.startsWith('/sessions')
+              ? []
+              : _device(
+                  lastReading: {'temperatureC': 31.2, 'energySavedKWh': 0.527},
+                ),
+        );
+        final details = await ApiDeviceRepository(apiClient: api)
+            .fetchDeviceDetails('DRYER-0001');
+        expect(details.chamberTemperatureCelsius, 31.2);
+        expect(details.energySavedKwh, 0.527);
+      },
+    );
 
     test('renames, reassigns by branch name, and unregisters', () async {
       final (api, calls) = _api(

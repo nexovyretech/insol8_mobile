@@ -48,6 +48,10 @@ class _DeviceDetailPageState extends State<DeviceDetailPage> {
   bool _isLoading = true;
   StreamSubscription<LiveTelemetryBatch>? _liveUpdates;
 
+  /// The session ID the dryer reported in its previous live message.
+  String? _liveSessionId;
+  bool _hasLiveMessage = false;
+
   @override
   void initState() {
     super.initState();
@@ -73,14 +77,23 @@ class _DeviceDetailPageState extends State<DeviceDetailPage> {
   void _applyLiveBatch(LiveTelemetryBatch batch) {
     final details = _details;
     if (!mounted || details == null) return;
-    // A cycle started or ended since the page loaded: reload its details.
-    if (batch.sessionId != details.sessionId) {
+    // Reload only when the dryer's session changes between messages (a cycle
+    // started or ended). Comparing with the loaded session instead would
+    // reload on every message from a dryer reporting a session the backend
+    // did not start.
+    final sessionChanged = _hasLiveMessage && batch.sessionId != _liveSessionId;
+    _hasLiveMessage = true;
+    _liveSessionId = batch.sessionId;
+    if (sessionChanged) {
       _loadDetails();
       return;
     }
-    final temperature = batch.latestChamberTemperature;
-    if (temperature == null) return;
-    setState(() => _details = details.withChamberTemperature(temperature));
+    setState(
+      () => _details = details.withLiveReading(
+        chamberTemperatureCelsius: batch.latestChamberTemperature,
+        energySavedKwh: batch.latestEnergySavedKwh,
+      ),
+    );
   }
 
   Future<void> _loadDetails() async {

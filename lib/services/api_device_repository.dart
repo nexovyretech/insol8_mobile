@@ -44,17 +44,20 @@ class ApiDeviceRepository implements DeviceRepository {
     final history = results[1] as List<Map<String, dynamic>>;
     final settings = _cycleSettings[deviceId];
     final startedAt = _time(session?['startedAt']);
+    final lastReading = device['lastReading'] as Map<String, dynamic>?;
     return DeviceDetailData(
       deviceId: deviceId,
       isActive: session?['status'] == 'running',
       timeStarted: startedAt == null ? '—' : formatClock(startedAt),
-      chamberTemperatureCelsius: _number(
-        (device['lastReading'] as Map<String, dynamic>?)?['temperatureC'],
-      ),
+      chamberTemperatureCelsius: _number(lastReading?['temperatureC']),
       thermalChargePercent: _number(device['thermalChargePercent']),
       loadCapacityKg: _number(session?['loadKg']),
       timeRemainingMinutes: (session?['timeRemainingMinutes'] as num?)?.toInt(),
-      energySavedKwh: _number(session?['energySavedKWh']),
+      // The dryer reports energy saved in every reading, so it shows even
+      // before a backend session exists.
+      energySavedKwh:
+          _number(session?['energySavedKWh']) ??
+          _number(lastReading?['energySavedKWh']),
       fabricType: session?['fabricType'] as String? ?? settings?.fabricType,
       runtimeMinutes:
           (session?['runtimeMinutes'] as num?)?.toInt() ??

@@ -70,16 +70,20 @@ class DeviceDetailData {
   /// The running drying session, if any.
   final String? sessionId;
 
-  /// A copy showing a newer live chamber temperature.
-  DeviceDetailData withChamberTemperature(double celsius) => DeviceDetailData(
+  /// A copy showing newer live values; a null value keeps the current one.
+  DeviceDetailData withLiveReading({
+    double? chamberTemperatureCelsius,
+    double? energySavedKwh,
+  }) => DeviceDetailData(
     deviceId: deviceId,
     isActive: isActive,
     timeStarted: timeStarted,
-    chamberTemperatureCelsius: celsius,
+    chamberTemperatureCelsius:
+        chamberTemperatureCelsius ?? this.chamberTemperatureCelsius,
     thermalChargePercent: thermalChargePercent,
     loadCapacityKg: loadCapacityKg,
     timeRemainingMinutes: timeRemainingMinutes,
-    energySavedKwh: energySavedKwh,
+    energySavedKwh: energySavedKwh ?? this.energySavedKwh,
     fabricType: fabricType,
     runtimeMinutes: runtimeMinutes,
     operatingMode: operatingMode,
