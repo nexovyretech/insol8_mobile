@@ -28,8 +28,13 @@ class LiveTelemetryBatch {
   final List<Map<String, dynamic>> readings;
 
   /// The newest chamber temperature in the batch, if any reading has one.
-  double? get latestChamberTemperature => readings.reversed
-      .map((reading) => (reading['temperatureC'] as num?)?.toDouble())
+  double? get latestChamberTemperature => _latest('temperatureC');
+
+  /// The newest energy saved (kWh, cumulative for the job) in the batch.
+  double? get latestEnergySavedKwh => _latest('energySavedKWh');
+
+  double? _latest(String field) => readings.reversed
+      .map((reading) => (reading[field] as num?)?.toDouble())
       .whereType<double>()
       .firstOrNull;
 }

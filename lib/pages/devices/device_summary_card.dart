@@ -110,7 +110,7 @@ class DeviceSummaryCard extends StatelessWidget {
                 ),
               ),
               Text(
-                '${_number(details.energySavedKwh)}kWh',
+                '${_energy(details.energySavedKwh)}kWh',
                 style: Theme.of(context).textTheme.titleLarge?.copyWith(
                   color: AppColors.primary,
                   fontSize: 22,
@@ -130,6 +130,10 @@ class DeviceSummaryCard extends StatelessWidget {
       : value == value.roundToDouble()
       ? value.toInt().toString()
       : value.toStringAsFixed(1);
+
+  // A cycle saves fractions of a kWh, so one decimal would hide it climbing.
+  String _energy(double? value) =>
+      value == null ? '—' : value.toStringAsFixed(2);
 
   double _fraction(double? value, num whole) =>
       value == null ? 0 : (value / whole).clamp(0, 1).toDouble();
