@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import 'package:insol8_mobile/models/device_data.dart';
+import 'package:insol8_mobile/pages/devices/bulk_cycle_control_sheet.dart';
 import 'package:insol8_mobile/pages/devices/device_card.dart';
 import 'package:insol8_mobile/pages/devices/device_filter_bar.dart';
 import 'package:insol8_mobile/pages/home/dashboard_bottom_navigation.dart';
@@ -217,8 +218,36 @@ class _DevicesPageState extends State<DevicesPage> {
         organizationPlan: false,
         onSelect: _onNavigationSelected,
       ),
+      floatingActionButton: !_isLoading && _errorMessage == null
+          ? FloatingActionButton(
+              tooltip: 'Manage drying jobs',
+              onPressed: _openBulkCycleControls,
+              backgroundColor: AppColors.primary,
+              foregroundColor: Colors.white,
+              child: const Icon(Icons.add),
+            )
+          : null,
     ),
   );
+
+  Future<void> _openBulkCycleControls() async {
+    final result = await showBulkCycleControlSheet(
+      context: context,
+      devices: _devices,
+      repository: widget.deviceRepository,
+    );
+    if (!mounted || result == null) return;
+    await _loadDevices(showLoading: false);
+    if (!mounted) return;
+    final message = [
+      if (result.started > 0)
+        '${result.started} job${result.started == 1 ? '' : 's'} started',
+      if (result.stopped > 0)
+        '${result.stopped} job${result.stopped == 1 ? '' : 's'} stopped',
+      if (result.failed > 0) '${result.failed} failed',
+    ].join(' · ');
+    _showMessage(message.isEmpty ? 'No drying jobs were changed.' : message);
+  }
 
   Widget _buildDeviceContent() {
     if (_isLoading) return const Center(child: CircularProgressIndicator());

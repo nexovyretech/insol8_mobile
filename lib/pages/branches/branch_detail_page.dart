@@ -2,8 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 
 import 'package:insol8_mobile/models/branch_data.dart';
-import 'package:insol8_mobile/pages/home/dashboard_bottom_navigation.dart';
+import 'package:insol8_mobile/pages/devices/bulk_cycle_control_sheet.dart';
 import 'package:insol8_mobile/pages/devices/device_management_page.dart';
+import 'package:insol8_mobile/pages/home/dashboard_bottom_navigation.dart';
 import 'package:insol8_mobile/pages/onboarding/onboarding_page.dart';
 import 'package:insol8_mobile/routes/app_routes.dart';
 import 'package:insol8_mobile/services/device_repository.dart';
@@ -43,6 +44,41 @@ class BranchDetailPage extends StatelessWidget {
           ),
         ),
       );
+  }
+
+  Future<void> _openBulkCycleControls(BuildContext context) async {
+    try {
+      final allDevices = await deviceRepository.fetchDevices();
+      final branchDeviceIds = branch.deviceIds.toSet();
+      final devices = allDevices
+          .where((device) => branchDeviceIds.contains(device.id))
+          .toList(growable: false);
+      if (!context.mounted) return;
+      final result = await showBulkCycleControlSheet(
+        context: context,
+        devices: devices,
+        repository: deviceRepository,
+      );
+      if (!context.mounted || result == null) return;
+      final message = [
+        if (result.started > 0)
+          '${result.started} job${result.started == 1 ? '' : 's'} started',
+        if (result.stopped > 0)
+          '${result.stopped} job${result.stopped == 1 ? '' : 's'} stopped',
+        if (result.failed > 0) '${result.failed} failed',
+      ].join(' · ');
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(SnackBar(content: Text(message)));
+    } on Exception {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Could not load this branch’s devices.'),
+          ),
+        );
+      }
+    }
   }
 
   Future<void> _openDeviceManagement(
@@ -279,6 +315,13 @@ class BranchDetailPage extends StatelessWidget {
           Navigator.of(context).pushNamed(AppRoutes.settings);
         }
       },
+    ),
+    floatingActionButton: FloatingActionButton(
+      tooltip: 'Manage drying jobs',
+      onPressed: () => _openBulkCycleControls(context),
+      backgroundColor: AppColors.primary,
+      foregroundColor: Colors.white,
+      child: const Icon(Icons.add),
     ),
   );
 
