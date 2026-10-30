@@ -149,6 +149,8 @@ class ApiDeviceRepository implements DeviceRepository {
       pcmReservePercent: (current['thermalChargePercent'] as num?)?.toInt(),
       currentBranch: branch?['name'] as String? ?? 'Unassigned',
       availableBranches: [for (final item in branches) item['name'] as String],
+      // Not shown.status: a dryer can be offline with its job still running.
+      hasRunningJob: current['activeSessionId'] != null,
     );
   }
 

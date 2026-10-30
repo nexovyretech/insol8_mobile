@@ -6,8 +6,10 @@ import 'package:flutter_svg/flutter_svg.dart';
 
 import 'package:insol8_mobile/models/device_data.dart';
 import 'package:insol8_mobile/models/device_detail_data.dart';
+import 'package:insol8_mobile/models/device_management_data.dart';
 import 'package:insol8_mobile/pages/devices/device_cycle_control_panel.dart';
 import 'package:insol8_mobile/pages/devices/device_history_section.dart';
+import 'package:insol8_mobile/pages/devices/device_management_page.dart';
 import 'package:insol8_mobile/pages/devices/device_summary_card.dart';
 import 'package:insol8_mobile/services/auth_repository.dart';
 import 'package:insol8_mobile/services/device_repository.dart';
@@ -38,7 +40,7 @@ class DeviceDetailPage extends StatefulWidget {
 }
 
 class _DeviceDetailPageState extends State<DeviceDetailPage> {
-  late final String _deviceName = widget.device.name;
+  late String _deviceName = widget.device.name;
   DeviceDetailData? _details;
   DeviceHistoryPeriod _selectedPeriod = DeviceHistoryPeriod.pastMonths;
   String? _fabricType;
@@ -151,6 +153,25 @@ class _DeviceDetailPageState extends State<DeviceDetailPage> {
     }
   }
 
+  // Device management renames or unregisters the dryer. An unregistered dryer
+  // closes this page with true, which removes it from the devices list.
+  Future<void> _openDeviceManagement() async {
+    final result = await Navigator.of(context).push<DeviceManagementResult>(
+      MaterialPageRoute<DeviceManagementResult>(
+        builder: (_) => DeviceManagementPage(
+          device: widget.device,
+          deviceRepository: widget.deviceRepository,
+        ),
+      ),
+    );
+    if (!mounted || result == null) return;
+    if (result.unregistered) {
+      Navigator.of(context).pop(true);
+      return;
+    }
+    setState(() => _deviceName = result.deviceName);
+  }
+
   Future<void> _toggleOperatingMode() async {
     final previousMode = _operatingMode;
     final nextMode = previousMode == DeviceOperatingMode.automatic
@@ -204,10 +225,14 @@ class _DeviceDetailPageState extends State<DeviceDetailPage> {
                   ),
                 ),
                 leadingTooltip: 'Back to devices',
-                trailing: SvgPicture.asset(
-                  'assets/icons/device_management_tune.svg',
-                  width: 18,
-                  height: 18,
+                trailing: IconButton(
+                  tooltip: 'Device management',
+                  onPressed: _openDeviceManagement,
+                  icon: SvgPicture.asset(
+                    'assets/icons/device_management_tune.svg',
+                    width: 18,
+                    height: 18,
+                  ),
                 ),
               ),
             ),

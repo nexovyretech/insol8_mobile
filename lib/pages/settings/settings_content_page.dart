@@ -228,7 +228,7 @@ class _SettingsContentPageState extends State<SettingsContentPage> {
             'Org Tier',
             _planId == SubscriptionPlanIds.basic ? 'Inactive' : 'Active',
           ),
-          const _SettingsRow('Plan pricing', 'Php 200 / month'),
+          const _SettingsRow('Plan pricing', 'Php 250 / month'),
           _SettingsRow(
             'Change plan',
             '›',
