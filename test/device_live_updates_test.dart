@@ -58,13 +58,14 @@ LiveTelemetryBatch _message(String? sessionId, double celsius, double saved) =>
           'recordedAt': '2026-10-29T00:00:00Z',
           'temperatureC': celsius,
           'energySavedKWh': saved,
+          'standalone_state_of_charge': 0.82,
         },
       ],
     );
 
 void main() {
   testWidgets(
-    'live messages update temperature and energy saved without reloading',
+    'live messages update temperature, thermal charge and energy saved without reloading',
     (tester) async {
       final devices = _CountingDevices();
       final live = _FakeLive();
@@ -88,6 +89,7 @@ void main() {
       );
       await tester.pumpAndSettle();
       expect(find.text('31°C'), findsOneWidget);
+      expect(find.text('—%'), findsOneWidget);
       expect(find.text('0.50kWh'), findsOneWidget);
 
       // The dryer keeps reporting a session the backend did not start; that
@@ -97,6 +99,8 @@ void main() {
         await tester.pumpAndSettle();
       }
       expect(find.text('33°C'), findsOneWidget);
+      // standalone_state_of_charge 0.82 shows as the thermal charge gauge.
+      expect(find.text('82%'), findsOneWidget);
       expect(find.text('0.53kWh'), findsOneWidget);
       expect(devices.loads, 1);
 
@@ -108,4 +112,33 @@ void main() {
       await live.controller.close();
     },
   );
+
+  testWidgets('pulling the device page down reloads it', (tester) async {
+    final devices = _CountingDevices();
+    await tester.pumpWidget(
+      MaterialApp(
+        home: DeviceDetailPage(
+          device: const DeviceData(
+            id: 'INSOL8_01',
+            name: 'Real Dryer',
+            status: DeviceStatus.idle,
+            temperatureCelsius: 31,
+            batteryPercent: null,
+            cycleDuration: '0min',
+            lastUpdated: '',
+          ),
+          authRepository: _SignedIn(),
+          deviceRepository: devices,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(devices.loads, 1);
+
+    await tester.fling(find.text('31°C'), const Offset(0, 400), 1000);
+    await tester.pumpAndSettle();
+    expect(devices.loads, 2);
+    // The page keeps its content while refreshing.
+    expect(find.text('31°C'), findsOneWidget);
+  });
 }

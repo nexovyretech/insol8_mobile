@@ -66,6 +66,7 @@ class ApiDeviceRepository implements DeviceRepository {
       operatingMode: _operatingModes[deviceId] ?? DeviceOperatingMode.automatic,
       history: [for (final item in history) _historyRecord(item)],
       sessionId: sessionId,
+      maxLoadKg: _maxLoadKg(device),
     );
   }
 
@@ -90,10 +91,12 @@ class ApiDeviceRepository implements DeviceRepository {
       );
     }
     // Backend contract: POST /sessions accepts a device ID and cycle settings.
+    // It refuses a load over the dryer's maxLoadKg (LOAD_EXCEEDS_CAPACITY).
     await _api.post('/sessions', {
       'deviceId': deviceId,
       'fabricType': settings.fabricType,
       'runtimeMinutes': settings.runtimeMinutes,
+      'loadKg': ?settings.loadKg,
     });
     _cycleSettings[deviceId] = settings;
   }
@@ -146,6 +149,8 @@ class ApiDeviceRepository implements DeviceRepository {
       pcmReservePercent: (current['thermalChargePercent'] as num?)?.toInt(),
       currentBranch: branch?['name'] as String? ?? 'Unassigned',
       availableBranches: [for (final item in branches) item['name'] as String],
+      // Not shown.status: a dryer can be offline with its job still running.
+      hasRunningJob: current['activeSessionId'] != null,
     );
   }
 
@@ -204,8 +209,12 @@ class ApiDeviceRepository implements DeviceRepository {
       lastUpdated: lastSeenAt == null
           ? 'Never'
           : formatClockOrDate(lastSeenAt, now: _now()),
+      maxLoadKg: _maxLoadKg(json),
     );
   }
+
+  static double _maxLoadKg(Map<String, dynamic> device) =>
+      _number(device['maxLoadKg']) ?? DeviceData.defaultMaxLoadKg;
 
   // Sessions newer than a week ago are "past 7 days"; the history filter
   // includes earlier periods, so "past months" holds everything older.

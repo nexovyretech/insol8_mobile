@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import 'package:insol8_mobile/models/branch_data.dart';
 import 'package:insol8_mobile/models/device_data.dart';
@@ -11,6 +12,7 @@ import 'package:insol8_mobile/services/device_repository.dart';
 import 'package:insol8_mobile/services/subscription_repository.dart';
 import 'package:insol8_mobile/theme/app_colors.dart';
 import 'package:insol8_mobile/theme/app_spacing.dart';
+import 'package:insol8_mobile/utils/display_format.dart';
 import 'package:insol8_mobile/widgets/app_page_header.dart';
 
 class AccountProfilePage extends StatefulWidget {
@@ -37,6 +39,7 @@ class _AccountProfilePageState extends State<AccountProfilePage> {
   int? _deviceCount;
   int? _branchCount;
   bool _loading = true;
+  bool _saving = false;
 
   @override
   void initState() {
@@ -94,31 +97,16 @@ class _AccountProfilePageState extends State<AccountProfilePage> {
     );
     if (confirmed != true || !mounted) return;
 
-    setState(() {
-      _profile = UserProfile(
-        username: username,
-        firstName: profile.firstName,
-        lastName: profile.lastName,
-        email: profile.email,
-        mobileNumber: profile.mobileNumber,
-      );
-    });
-
-    await showDialog<void>(
-      context: context,
-      builder: (dialogContext) => const _UsernameSavedDialog(),
-    );
+    await _save(() => widget.authRepository.updateProfile(username: username));
   }
 
   Future<void> _editProfileField({
     required String label,
     required String initialValue,
     required String hint,
-    required UserProfile Function(UserProfile profile, String value) update,
-    String? Function(String value)? validator,
+    required Future<UserProfile> Function(String value) save,
   }) async {
-    final profile = _profile;
-    if (profile == null) return;
+    if (_profile == null) return;
 
     final value = await showDialog<String>(
       context: context,
@@ -126,8 +114,6 @@ class _AccountProfilePageState extends State<AccountProfilePage> {
         label: label,
         initialValue: initialValue,
         hint: hint,
-        update: update,
-        validator: validator,
       ),
     );
     if (value == null || value == initialValue || !mounted) return;
@@ -138,17 +124,105 @@ class _AccountProfilePageState extends State<AccountProfilePage> {
     );
     if (confirmed != true || !mounted) return;
 
-    setState(() => _profile = update(profile, value));
+    await _save(() => save(value));
+  }
+
+  /// Email is a sign-in alias, so Cognito verifies the new address with a
+  /// code before the profile is updated; the old address stays active until
+  /// then.
+  Future<void> _editEmail() async {
+    final profile = _profile;
+    if (profile == null) return;
+
+    final value = await showDialog<String>(
+      context: context,
+      builder: (_) => _ChangeProfileFieldDialog(
+        label: 'Email Address',
+        initialValue: profile.email ?? '',
+        hint: 'janedoe@email.com',
+        validator: (value) =>
+            RegExp(r'^[^\s@]+@[^\s@]+\.[^\s@]+$').hasMatch(value)
+            ? null
+            : 'Enter a valid email address.',
+      ),
+    );
+    final email = value?.toLowerCase();
+    if (email == null || email == profile.email || !mounted) return;
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (_) =>
+          _ConfirmProfileChangeDialog(label: 'Email Address', value: email),
+    );
+    if (confirmed != true || !mounted) return;
+
+    setState(() => _saving = true);
+    try {
+      await widget.authRepository.requestEmailChange(email);
+    } on AuthFailure catch (error) {
+      _message(error.message);
+      return;
+    } on Exception {
+      _message('Could not send a verification code. Please try again.');
+      return;
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+
+    // A mistyped code can be retried; any other failure ends the flow.
+    while (true) {
+      if (!mounted) return;
+      final code = await showDialog<String>(
+        context: context,
+        barrierDismissible: false,
+        builder: (_) => _EmailCodeDialog(email: email),
+      );
+      if (code == null || !mounted) return;
+      final result = await _save(
+        () => widget.authRepository.confirmEmailChange(email: email, code: code),
+      );
+      if (result != _SaveResult.codeError) return;
+    }
+  }
+
+  /// Saves behind a progress bar, then shows the stored profile.
+  Future<_SaveResult> _save(Future<UserProfile> Function() action) async {
+    setState(() => _saving = true);
+    final UserProfile saved;
+    try {
+      saved = await action();
+    } on AuthFailure catch (error) {
+      _message(error.message);
+      return error.isCodeError ? _SaveResult.codeError : _SaveResult.failed;
+    } on Exception {
+      _message('Could not save your changes. Please try again.');
+      return _SaveResult.failed;
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+    if (!mounted) return _SaveResult.saved;
+    setState(() => _profile = saved);
 
     await showDialog<void>(
       context: context,
       builder: (_) => const _UsernameSavedDialog(),
     );
+    return _SaveResult.saved;
   }
 
-  void _message(String text) => ScaffoldMessenger.of(context)
-    ..hideCurrentSnackBar()
-    ..showSnackBar(SnackBar(content: Text(text)));
+  void _copyUserId() {
+    final id = _profile?.id;
+    if (id == null) return;
+    Clipboard.setData(ClipboardData(text: id));
+    _message('User ID copied.');
+  }
+
+  void _message(String text) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(SnackBar(content: Text(text)));
+  }
 
   void _navigation(int index) {
     if (index == 3) {
@@ -204,58 +278,67 @@ class _AccountProfilePageState extends State<AccountProfilePage> {
                                 'Username',
                                 profile?.username ?? '—',
                                 editable: true,
-                                onTap: _editUsername,
+                                onTap: _saving ? null : _editUsername,
                               ),
                               _InfoRow(
                                 'First name',
                                 profile?.firstName ?? '—',
                                 editable: true,
-                                onTap: () => _editProfileField(
-                                  label: 'First Name',
-                                  initialValue: profile?.firstName ?? '',
-                                  hint: 'Jane',
-                                  update: (current, value) =>
-                                      current.copyWith(firstName: value),
-                                ),
+                                onTap: _saving
+                                    ? null
+                                    : () => _editProfileField(
+                                        label: 'First Name',
+                                        initialValue: profile?.firstName ?? '',
+                                        hint: 'Jane',
+                                        save: (value) => widget.authRepository
+                                            .updateProfile(firstName: value),
+                                      ),
                               ),
                               _InfoRow(
                                 'Last name',
                                 profile?.lastName ?? '—',
                                 editable: true,
-                                onTap: () => _editProfileField(
-                                  label: 'Last Name',
-                                  initialValue: profile?.lastName ?? '',
-                                  hint: 'Doe',
-                                  update: (current, value) =>
-                                      current.copyWith(lastName: value),
-                                ),
+                                onTap: _saving
+                                    ? null
+                                    : () => _editProfileField(
+                                        label: 'Last Name',
+                                        initialValue: profile?.lastName ?? '',
+                                        hint: 'Doe',
+                                        save: (value) => widget.authRepository
+                                            .updateProfile(lastName: value),
+                                      ),
                               ),
                               _InfoRow(
                                 'Email address',
                                 profile?.email ?? '—',
                                 editable: true,
-                                onTap: () => _editProfileField(
-                                  label: 'Email Address',
-                                  initialValue: profile?.email ?? '',
-                                  hint: 'janedoe@email.com',
-                                  update: (current, value) =>
-                                      current.copyWith(email: value),
-                                  validator: (value) =>
-                                      RegExp(r'^[^\s@]+@[^\s@]+\.[^\s@]+$')
-                                          .hasMatch(value)
-                                      ? null
-                                      : 'Enter a valid email address.',
-                                ),
+                                onTap: _saving ? null : _editEmail,
                                 last: true,
                               ),
                             ],
                           ),
+                          if (_saving)
+                            const Padding(
+                              padding: EdgeInsets.only(top: 8),
+                              child: LinearProgressIndicator(minHeight: 2),
+                            ),
                           const SizedBox(height: 14),
                           const _SectionLabel('System Info'),
                           _InfoCard(
-                            rows: const [
-                              _InfoRow('User ID', '—'),
-                              _InfoRow('Member Since', '—', last: true),
+                            rows: [
+                              _InfoRow(
+                                'User ID',
+                                profile?.id ?? '—',
+                                onTap: _copyUserId,
+                              ),
+                              _InfoRow(
+                                'Member Since',
+                                switch (profile?.createdAt) {
+                                  final createdAt? => formatDate(createdAt),
+                                  null => '—',
+                                },
+                                last: true,
+                              ),
                             ],
                           ),
                           const SizedBox(height: 14),
@@ -535,14 +618,12 @@ class _ChangeProfileFieldDialog extends StatefulWidget {
     required this.label,
     required this.initialValue,
     required this.hint,
-    required this.update,
     this.validator,
   });
 
   final String label;
   final String initialValue;
   final String hint;
-  final UserProfile Function(UserProfile profile, String value) update;
   final String? Function(String value)? validator;
 
   @override
@@ -634,6 +715,87 @@ class _ChangeProfileFieldDialogState extends State<_ChangeProfileFieldDialog> {
   );
 }
 
+enum _SaveResult { saved, codeError, failed }
+
+class _EmailCodeDialog extends StatefulWidget {
+  const _EmailCodeDialog({required this.email});
+
+  final String email;
+
+  @override
+  State<_EmailCodeDialog> createState() => _EmailCodeDialogState();
+}
+
+class _EmailCodeDialogState extends State<_EmailCodeDialog> {
+  final _controller = TextEditingController();
+  String? _error;
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  void _verify() {
+    final code = _controller.text.trim();
+    if (!RegExp(r'^\d{6}$').hasMatch(code)) {
+      setState(() => _error = 'Enter the 6-digit code.');
+      return;
+    }
+    Navigator.of(context).pop(code);
+  }
+
+  @override
+  Widget build(BuildContext context) => _ProfileDialog(
+    title: 'Verify Email',
+    content: Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(
+          'Enter the 6-digit code we sent to ${widget.email}.',
+          textAlign: TextAlign.center,
+          style: const TextStyle(
+            color: AppColors.ink,
+            fontSize: 16,
+            height: 1.3,
+          ),
+        ),
+        const SizedBox(height: 24),
+        TextField(
+          controller: _controller,
+          autofocus: true,
+          keyboardType: TextInputType.number,
+          maxLength: 6,
+          inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+          onChanged: (_) {
+            if (_error != null) setState(() => _error = null);
+          },
+          decoration: InputDecoration(
+            hintText: '123456',
+            counterText: '',
+            errorText: _error,
+            filled: true,
+            fillColor: AppColors.dashboardCard,
+            contentPadding: const EdgeInsets.symmetric(
+              horizontal: 18,
+              vertical: 18,
+            ),
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(18),
+              borderSide: BorderSide.none,
+            ),
+          ),
+          onSubmitted: (_) => _verify(),
+        ),
+      ],
+    ),
+    actions: [
+      _DialogCancelButton(onPressed: () => Navigator.pop(context)),
+      _DialogPrimaryButton(label: 'Verify', onPressed: _verify),
+    ],
+  );
+}
+
 class _ConfirmProfileChangeDialog extends StatelessWidget {
   const _ConfirmProfileChangeDialog({required this.label, required this.value});
 
@@ -646,7 +808,7 @@ class _ConfirmProfileChangeDialog extends StatelessWidget {
       TextSpan(
         style: const TextStyle(color: AppColors.ink, fontSize: 16, height: 1.3),
         children: [
-          TextSpan(text: 'Are you sure you want to save your $label?\\n'),
+          TextSpan(text: 'Are you sure you want to save your $label?\n'),
           TextSpan(
             text: value,
             style: const TextStyle(fontWeight: FontWeight.w700),

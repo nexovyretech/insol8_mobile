@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:insol8_mobile/models/device_data.dart';
 import 'package:insol8_mobile/models/device_management_data.dart';
 import 'package:insol8_mobile/pages/devices/branch_search_page.dart';
+import 'package:insol8_mobile/services/api_client.dart';
 import 'package:insol8_mobile/services/device_repository.dart';
 import 'package:insol8_mobile/theme/app_colors.dart';
 import 'package:insol8_mobile/theme/app_spacing.dart';
@@ -175,6 +176,7 @@ class _DeviceManagementPageState extends State<DeviceManagementPage> {
           pcmReservePercent: _details!.pcmReservePercent,
           currentBranch: branch,
           availableBranches: _details!.availableBranches,
+          hasRunningJob: _details!.hasRunningJob,
         );
       });
     } on Exception {
@@ -182,7 +184,35 @@ class _DeviceManagementPageState extends State<DeviceManagementPage> {
     }
   }
 
+  // The backend refuses to release a dryer with a running job, so the owner is
+  // asked to stop it on the device page first.
+  Future<void> _showStopJobFirst() => showDialog<void>(
+    context: context,
+    builder: (dialogContext) => AlertDialog(
+      backgroundColor: AppColors.background,
+      surfaceTintColor: Colors.transparent,
+      title: const Text('Stop the Job First'),
+      content: Text(
+        '$_deviceName is running a drying job. Stop the job from the device page, then unregister the device.',
+      ),
+      actions: [
+        FilledButton(
+          onPressed: () => Navigator.pop(dialogContext),
+          style: FilledButton.styleFrom(
+            backgroundColor: AppColors.primary,
+            foregroundColor: Colors.white,
+          ),
+          child: const Text('OK'),
+        ),
+      ],
+    ),
+  );
+
   Future<void> _unregisterDevice() async {
+    if (_details?.hasRunningJob == true) {
+      await _showStopJobFirst();
+      return;
+    }
     final confirmed =
         await showDialog<bool>(
           context: context,
@@ -191,7 +221,7 @@ class _DeviceManagementPageState extends State<DeviceManagementPage> {
             surfaceTintColor: Colors.transparent,
             title: const Text('Unregister Device?'),
             content: Text(
-              'This disconnects $_deviceName from your laundry system. Active cycles will stop, and device logs will be archived.',
+              'This disconnects $_deviceName from your laundry system. Its drying history stays on your account.',
             ),
             actions: [
               TextButton(
@@ -218,6 +248,14 @@ class _DeviceManagementPageState extends State<DeviceManagementPage> {
         context,
         DeviceManagementResult(deviceName: _deviceName, unregistered: true),
       );
+    } on ApiException catch (error) {
+      if (!mounted) return;
+      // A job was started after this page loaded.
+      if (error.code == 'SESSION_RUNNING') {
+        await _showStopJobFirst();
+      } else {
+        _showMessage('Couldn’t unregister this device. Try again.');
+      }
     } on Exception {
       if (mounted) _showMessage('Couldn’t unregister this device. Try again.');
     }
@@ -362,7 +400,7 @@ class _DeviceManagementPageState extends State<DeviceManagementPage> {
         ),
         const SizedBox(height: 8),
         Text(
-          'Disconnects this dryer from your laundry system. Active cycles will stop, and device logs will be archived.',
+          'Disconnects this dryer from your laundry system. Stop any running job first; its drying history stays on your account.',
           textAlign: TextAlign.center,
           style: Theme.of(context).textTheme.bodySmall
               ?.copyWith(color: AppColors.fieldHint, fontSize: 11),

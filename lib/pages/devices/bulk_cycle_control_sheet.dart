@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import 'package:insol8_mobile/models/device_data.dart';
 import 'package:insol8_mobile/models/device_detail_data.dart';
+import 'package:insol8_mobile/pages/auth/login_widgets.dart';
 import 'package:insol8_mobile/services/device_repository.dart';
 import 'package:insol8_mobile/theme/app_colors.dart';
 import 'package:insol8_mobile/theme/app_spacing.dart';
@@ -49,7 +51,51 @@ class _BulkCycleControlSheetState extends State<_BulkCycleControlSheet> {
   final Set<String> _selectedIds = {};
   String _fabricType = _fabricTypes.first;
   int _runtimeMinutes = 30;
+  final _loadController = TextEditingController();
   bool _isWorking = false;
+
+  @override
+  void dispose() {
+    _loadController.dispose();
+    super.dispose();
+  }
+
+  /// The load entered in kg; null while empty, zero or unreadable.
+  double? get _loadKg {
+    final value = double.tryParse(_loadController.text);
+    return value == null || value <= 0 ? null : value;
+  }
+
+  // The load is checked against the dryers that will start; before any are
+  // selected, against every dryer, so the note shows the smallest limit.
+  List<DeviceData> get _loadDevices {
+    final starting = _selectedDevices
+        .where((device) => device.status == DeviceStatus.idle)
+        .toList(growable: false);
+    return starting.isNotEmpty ? starting : widget.devices;
+  }
+
+  double get _loadLimitKg => _loadDevices.isEmpty
+      ? DeviceData.defaultMaxLoadKg
+      : _loadDevices
+            .map((device) => device.maxLoadKg)
+            .reduce((a, b) => a < b ? a : b);
+
+  bool get _loadOverLimit {
+    final load = _loadKg;
+    return load != null && load > _loadLimitKg;
+  }
+
+  /// Selected dryers that cannot hold the entered load.
+  List<String> get _overloadedNames {
+    final load = _loadKg;
+    if (load == null) return const [];
+    return [
+      for (final device in _selectedDevices)
+        if (device.status == DeviceStatus.idle && load > device.maxLoadKg)
+          device.name,
+    ];
+  }
 
   List<DeviceData> get _selectedDevices => widget.devices
       .where((device) => _selectedIds.contains(device.id))
@@ -92,136 +138,180 @@ class _BulkCycleControlSheetState extends State<_BulkCycleControlSheet> {
                     borderRadius: BorderRadius.circular(4),
                   ),
                 ),
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(
-                    AppSpacing.pageHorizontal,
-                    18,
-                    AppSpacing.pageHorizontal,
-                    8,
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      Text(
-                        'Drying Jobs',
-                        style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                          color: AppColors.ink,
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        'Select dryers, choose a fabric and runtime, then start or stop jobs together.',
-                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: AppColors.fieldHint,
-                          height: 1.35,
-                        ),
-                      ),
-                      const SizedBox(height: 14),
-                      _CycleSettings(
-                        fabricType: _fabricType,
-                        runtimeMinutes: _runtimeMinutes,
-                        onFabricChanged: (value) =>
-                            setState(() => _fabricType = value),
-                        onRuntimeChanged: (value) =>
-                            setState(() => _runtimeMinutes = value),
-                      ),
-                      const SizedBox(height: 10),
-                      Row(
-                        children: [
-                          Text(
-                            'Select devices',
-                            style: Theme.of(context).textTheme.titleSmall
-                                ?.copyWith(
-                                  color: AppColors.sectionLabel,
-                                  fontWeight: FontWeight.w700,
-                                ),
-                          ),
-                          const Spacer(),
-                          TextButton(
-                            onPressed: _isWorking || _selectableIds.isEmpty
-                                ? null
-                                : _toggleAll,
-                            child: Text(
-                              _selectableIds.isNotEmpty &&
-                                      _selectableIds.every(
-                                        _selectedIds.contains,
-                                      )
-                                  ? 'Clear'
-                                  : 'Select all',
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-                ),
+                // The settings scroll with the dryer list so the sheet still
+                // fits when the keyboard shrinks it.
                 Expanded(
-                  child: widget.devices.isEmpty
-                      ? Center(
-                          child: Padding(
-                            padding: const EdgeInsets.all(24),
-                            child: Column(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                const Icon(
-                                  Icons.devices_other_outlined,
-                                  color: AppColors.sectionLabel,
-                                  size: 42,
-                                ),
-                                const SizedBox(height: 12),
-                                Text(
-                                  'No dryers connected yet',
-                                  textAlign: TextAlign.center,
-                                  style: Theme.of(context).textTheme.titleSmall
-                                      ?.copyWith(
-                                        color: AppColors.ink,
-                                        fontWeight: FontWeight.w700,
-                                      ),
-                                ),
-                                const SizedBox(height: 6),
-                                Text(
-                                  'Add a dryer first. Once it appears online, '
-                                  'you can select it here to set its fabric '
-                                  'and runtime, then start or stop jobs.',
-                                  textAlign: TextAlign.center,
-                                  style: Theme.of(context).textTheme.bodySmall
-                                      ?.copyWith(
-                                        color: AppColors.fieldHint,
-                                        height: 1.4,
-                                      ),
-                                ),
-                              ],
+                  child: CustomScrollView(
+                    keyboardDismissBehavior:
+                        ScrollViewKeyboardDismissBehavior.onDrag,
+                    slivers: [
+                      SliverPadding(
+                        padding: const EdgeInsets.fromLTRB(
+                          AppSpacing.pageHorizontal,
+                          18,
+                          AppSpacing.pageHorizontal,
+                          8,
+                        ),
+                        sliver: SliverToBoxAdapter(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              Text(
+                                'Drying Jobs',
+                                style: Theme.of(context).textTheme.titleLarge
+                                    ?.copyWith(
+                                      color: AppColors.ink,
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                'Choose a fabric, runtime and load weight, select dryers, then start or stop jobs together.',
+                                style: Theme.of(context).textTheme.bodySmall
+                                    ?.copyWith(
+                                      color: AppColors.fieldHint,
+                                      height: 1.35,
+                                    ),
+                              ),
+                              const SizedBox(height: 14),
+                              _CycleSettings(
+                                fabricType: _fabricType,
+                                runtimeMinutes: _runtimeMinutes,
+                                onFabricChanged: (value) =>
+                                    setState(() => _fabricType = value),
+                                onRuntimeChanged: (value) =>
+                                    setState(() => _runtimeMinutes = value),
+                              ),
+                              const SizedBox(height: 14),
+                              _LoadWeightField(
+                                controller: _loadController,
+                                overLimit: _loadOverLimit,
+                                onChanged: (_) => setState(() {}),
+                              ),
+                              const SizedBox(height: 8),
+                              _LoadLimitNote(
+                                limitKg: _loadLimitKg,
+                                overLimit: _loadOverLimit,
+                                overloadedNames: _overloadedNames,
+                              ),
+                              const SizedBox(height: 6),
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: Text(
+                                      'Select devices',
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: Theme.of(context)
+                                          .textTheme
+                                          .titleSmall
+                                          ?.copyWith(
+                                            color: AppColors.sectionLabel,
+                                            fontWeight: FontWeight.w700,
+                                          ),
+                                    ),
+                                  ),
+                                  TextButton(
+                                    onPressed:
+                                        _isWorking || _selectableIds.isEmpty
+                                        ? null
+                                        : _toggleAll,
+                                    child: Text(
+                                      _selectableIds.isNotEmpty &&
+                                              _selectableIds.every(
+                                                _selectedIds.contains,
+                                              )
+                                          ? 'Clear'
+                                          : 'Select all',
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                      if (widget.devices.isEmpty)
+                        SliverFillRemaining(
+                          hasScrollBody: false,
+                          child: Center(
+                            child: Padding(
+                              padding: const EdgeInsets.all(24),
+                              child: Column(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  const Icon(
+                                    Icons.devices_other_outlined,
+                                    color: AppColors.sectionLabel,
+                                    size: 42,
+                                  ),
+                                  const SizedBox(height: 12),
+                                  Text(
+                                    'No dryers connected yet',
+                                    textAlign: TextAlign.center,
+                                    style: Theme.of(context)
+                                        .textTheme
+                                        .titleSmall
+                                        ?.copyWith(
+                                          color: AppColors.ink,
+                                          fontWeight: FontWeight.w700,
+                                        ),
+                                  ),
+                                  const SizedBox(height: 6),
+                                  Text(
+                                    'Add a dryer first. Once it appears online, '
+                                    'you can select it here to set its fabric '
+                                    'and runtime, then start or stop jobs.',
+                                    textAlign: TextAlign.center,
+                                    style: Theme.of(context).textTheme.bodySmall
+                                        ?.copyWith(
+                                          color: AppColors.fieldHint,
+                                          height: 1.4,
+                                        ),
+                                  ),
+                                ],
+                              ),
                             ),
                           ),
                         )
-                      : ListView.separated(
+                      else
+                        SliverPadding(
                           padding: const EdgeInsets.fromLTRB(
                             AppSpacing.pageHorizontal,
                             0,
                             AppSpacing.pageHorizontal,
                             12,
                           ),
-                          itemCount: widget.devices.length,
-                          separatorBuilder: (_, _) => const SizedBox(height: 7),
-                          itemBuilder: (context, index) => _DeviceSelectionTile(
-                            device: widget.devices[index],
-                            selected: _selectedIds.contains(
-                              widget.devices[index].id,
-                            ),
-                            enabled:
-                                !_isWorking &&
-                                widget.devices[index].status !=
-                                    DeviceStatus.offline,
-                            onChanged: (selected) => setState(() {
-                              if (selected) {
-                                _selectedIds.add(widget.devices[index].id);
-                              } else {
-                                _selectedIds.remove(widget.devices[index].id);
-                              }
-                            }),
+                          sliver: SliverList.separated(
+                            itemCount: widget.devices.length,
+                            separatorBuilder: (_, _) =>
+                                const SizedBox(height: 7),
+                            itemBuilder: (context, index) =>
+                                _DeviceSelectionTile(
+                                  device: widget.devices[index],
+                                  selected: _selectedIds.contains(
+                                    widget.devices[index].id,
+                                  ),
+                                  enabled:
+                                      !_isWorking &&
+                                      widget.devices[index].status !=
+                                          DeviceStatus.offline,
+                                  onChanged: (selected) => setState(() {
+                                    if (selected) {
+                                      _selectedIds.add(
+                                        widget.devices[index].id,
+                                      );
+                                    } else {
+                                      _selectedIds.remove(
+                                        widget.devices[index].id,
+                                      );
+                                    }
+                                  }),
+                                ),
                           ),
                         ),
+                    ],
+                  ),
                 ),
                 Padding(
                   padding: const EdgeInsets.fromLTRB(
@@ -238,10 +328,14 @@ class _BulkCycleControlSheetState extends State<_BulkCycleControlSheet> {
                               ? 'Working…'
                               : 'Start ($_startCount)',
                           icon: Icons.play_arrow_rounded,
+                          // A job needs a load weight within every
+                          // starting dryer's limit.
                           enabled:
                               !_isWorking &&
                               _startCount > 0 &&
-                              _runtimeMinutes > 0,
+                              _runtimeMinutes > 0 &&
+                              _loadKg != null &&
+                              !_loadOverLimit,
                           onPressed: () => _run(start: true),
                         ),
                       ),
@@ -296,6 +390,7 @@ class _BulkCycleControlSheetState extends State<_BulkCycleControlSheet> {
               settings: DeviceCycleSettings(
                 fabricType: _fabricType,
                 runtimeMinutes: _runtimeMinutes,
+                loadKg: _loadKg,
               ),
             );
           } else {
@@ -419,6 +514,110 @@ class _CycleSettings extends StatelessWidget {
       ],
     ),
   );
+}
+
+/// Load weight entry styled like the login fields: label above, filled
+/// rounded field with a kg unit on the right.
+class _LoadWeightField extends StatelessWidget {
+  const _LoadWeightField({
+    required this.controller,
+    required this.overLimit,
+    required this.onChanged,
+  });
+
+  final TextEditingController controller;
+  final bool overLimit;
+  final ValueChanged<String> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final errorBorder = OutlineInputBorder(
+      borderRadius: BorderRadius.circular(16),
+      borderSide: const BorderSide(color: AppColors.error),
+    );
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const LoginFieldLabel('Load Weight'),
+        const SizedBox(height: 8),
+        TextField(
+          key: const ValueKey('load-weight'),
+          controller: controller,
+          onChanged: onChanged,
+          // Kilograms only: digits with up to two decimals.
+          keyboardType: const TextInputType.numberWithOptions(decimal: true),
+          inputFormatters: [
+            FilteringTextInputFormatter.allow(RegExp(r'^\d{0,3}(\.\d{0,2})?')),
+          ],
+          style: overLimit ? const TextStyle(color: AppColors.error) : null,
+          decoration: InputDecoration(
+            hintText: 'Enter load weight e.g. 3.4',
+            suffixText: 'kg',
+            suffixStyle: Theme.of(context).textTheme.bodyMedium
+                ?.copyWith(color: AppColors.fieldHint),
+            enabledBorder: overLimit ? errorBorder : null,
+            focusedBorder: overLimit
+                ? errorBorder.copyWith(
+                    borderSide: const BorderSide(
+                      color: AppColors.error,
+                      width: 1.5,
+                    ),
+                  )
+                : null,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// The dryers' load limit, in red when the entered load exceeds it.
+class _LoadLimitNote extends StatelessWidget {
+  const _LoadLimitNote({
+    required this.limitKg,
+    required this.overLimit,
+    required this.overloadedNames,
+  });
+
+  final double limitKg;
+  final bool overLimit;
+  final List<String> overloadedNames;
+
+  @override
+  Widget build(BuildContext context) {
+    final limit = '${_kg(limitKg)} kg';
+    final message = !overLimit
+        ? 'Up to $limit per dryer.'
+        : overloadedNames.isEmpty
+        ? 'Over the $limit limit. Reduce the load to start.'
+        : 'Over the $limit limit of ${overloadedNames.join(', ')}. '
+              'Reduce the load to start.';
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Icon(
+          overLimit ? Icons.error_outline : Icons.info_outline,
+          size: 15,
+          color: overLimit ? AppColors.error : AppColors.fieldHint,
+        ),
+        const SizedBox(width: 6),
+        Expanded(
+          child: Text(
+            message,
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+              color: overLimit ? AppColors.error : AppColors.fieldHint,
+              fontSize: 11,
+              height: 1.35,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  static String _kg(double value) => value == value.roundToDouble()
+      ? value.toInt().toString()
+      : value.toString();
 }
 
 class _DeviceSelectionTile extends StatelessWidget {

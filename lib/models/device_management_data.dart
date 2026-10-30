@@ -10,6 +10,7 @@ class DeviceManagementData {
     required this.pcmReservePercent,
     required this.currentBranch,
     required this.availableBranches,
+    this.hasRunningJob = false,
   });
 
   factory DeviceManagementData.fromJson(Map<String, dynamic> json) =>
@@ -40,6 +41,9 @@ class DeviceManagementData {
   final int? pcmReservePercent;
   final String currentBranch;
   final List<String> availableBranches;
+
+  /// A drying job is running; it must be stopped before unregistering.
+  final bool hasRunningJob;
 }
 
 class DeviceManagementResult {

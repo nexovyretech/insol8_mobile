@@ -17,6 +17,23 @@ abstract interface class AuthRepository {
 
   Future<bool> isUsernameAvailable(String username);
 
+  /// Saves username and name changes; returns the stored profile.
+  Future<UserProfile> updateProfile({
+    String? username,
+    String? firstName,
+    String? lastName,
+  });
+
+  /// Starts an email change: Cognito emails a code to [email] and keeps the
+  /// current address active until [confirmEmailChange] succeeds.
+  Future<void> requestEmailChange(String email);
+
+  /// Confirms the code sent to [email] and saves it to the profile.
+  Future<UserProfile> confirmEmailChange({
+    required String email,
+    required String code,
+  });
+
   Future<void> requestVerificationCode({
     required String contact,
     required SignUpContactMethod method,
@@ -106,6 +123,23 @@ class UnconfiguredAuthRepository implements AuthRepository {
   @override
   Future<bool> isUsernameAvailable(String username) =>
       Future<bool>.error(const AuthNotConfiguredException());
+
+  @override
+  Future<UserProfile> updateProfile({
+    String? username,
+    String? firstName,
+    String? lastName,
+  }) => Future<UserProfile>.error(const AuthNotConfiguredException());
+
+  @override
+  Future<void> requestEmailChange(String email) =>
+      Future<void>.error(const AuthNotConfiguredException());
+
+  @override
+  Future<UserProfile> confirmEmailChange({
+    required String email,
+    required String code,
+  }) => Future<UserProfile>.error(const AuthNotConfiguredException());
 
   @override
   Future<void> requestVerificationCode({

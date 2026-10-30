@@ -69,6 +69,37 @@ Map<String, dynamic> _device({
 
 void main() {
   group('ApiDeviceRepository', () {
+    test('starts a job with its load and reads each dryer\'s limit', () async {
+      final (api, calls) = _api(
+        (call) => call.path == '/devices'
+            ? [
+                {..._device(), 'maxLoadKg': 8},
+                _device(id: 'DRYER-0002'),
+              ]
+            : {'sessionId': 's1'},
+      );
+      final repository = ApiDeviceRepository(apiClient: api);
+      final devices = await repository.fetchDevices();
+      expect(devices.map((device) => device.maxLoadKg), [8, 8]);
+
+      await repository.startDryingCycle(
+        deviceId: 'DRYER-0001',
+        settings: const DeviceCycleSettings(
+          fabricType: 'Cotton',
+          runtimeMinutes: 30,
+          loadKg: 6.5,
+        ),
+      );
+      expect(calls.last.method, 'POST');
+      expect(calls.last.path, '/sessions');
+      expect(calls.last.body, {
+        'deviceId': 'DRYER-0001',
+        'fabricType': 'Cotton',
+        'runtimeMinutes': 30,
+        'loadKg': 6.5,
+      });
+    });
+
     test('maps the device list, including status and cycle time', () async {
       final (api, calls) = _api(
         (_) => [

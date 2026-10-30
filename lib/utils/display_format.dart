@@ -36,3 +36,9 @@ String formatClockOrDate(DateTime time, {DateTime? now}) {
 
 /// Elapsed time as the device list shows it: `0min`, `1min`, `18mins`.
 String formatMinutes(int minutes) => '${minutes}min${minutes > 1 ? 's' : ''}';
+
+/// `Oct 21, 2026` in the phone's time zone.
+String formatDate(DateTime time) {
+  final local = time.toLocal();
+  return '${_months[local.month - 1]} ${local.day}, ${local.year}';
+}

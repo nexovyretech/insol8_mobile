@@ -1,3 +1,5 @@
+import 'package:insol8_mobile/models/device_data.dart';
+
 enum DeviceOperatingMode { automatic, manual }
 
 class DeviceDetailData {
@@ -15,34 +17,36 @@ class DeviceDetailData {
     required this.operatingMode,
     required this.history,
     this.sessionId,
+    this.maxLoadKg = DeviceData.defaultMaxLoadKg,
   });
 
-  factory DeviceDetailData.fromJson(Map<String, dynamic> json) =>
-      DeviceDetailData(
-        deviceId: json['deviceId'] as String,
-        isActive: json['isActive'] as bool,
-        timeStarted: json['timeStarted'] as String,
-        chamberTemperatureCelsius: (json['chamberTemperatureCelsius'] as num?)
-            ?.toDouble(),
-        thermalChargePercent: (json['thermalChargePercent'] as num?)
-            ?.toDouble(),
-        loadCapacityKg: (json['loadCapacityKg'] as num?)?.toDouble(),
-        timeRemainingMinutes: (json['timeRemainingMinutes'] as num?)?.toInt(),
-        energySavedKwh: (json['energySavedKwh'] as num?)?.toDouble(),
-        fabricType: json['fabricType'] as String?,
-        runtimeMinutes: (json['runtimeMinutes'] as num?)?.toInt() ?? 0,
-        operatingMode: DeviceOperatingMode.values.firstWhere(
-          (mode) => mode.name == json['operatingMode'],
-          orElse: () => DeviceOperatingMode.automatic,
-        ),
-        history: (json['history'] as List<dynamic>? ?? const [])
-            .map(
-              (item) =>
-                  DeviceHistoryRecord.fromJson(item as Map<String, dynamic>),
-            )
-            .toList(growable: false),
-        sessionId: json['sessionId'] as String?,
-      );
+  factory DeviceDetailData.fromJson(
+    Map<String, dynamic> json,
+  ) => DeviceDetailData(
+    deviceId: json['deviceId'] as String,
+    isActive: json['isActive'] as bool,
+    timeStarted: json['timeStarted'] as String,
+    chamberTemperatureCelsius: (json['chamberTemperatureCelsius'] as num?)
+        ?.toDouble(),
+    thermalChargePercent: (json['thermalChargePercent'] as num?)?.toDouble(),
+    loadCapacityKg: (json['loadCapacityKg'] as num?)?.toDouble(),
+    timeRemainingMinutes: (json['timeRemainingMinutes'] as num?)?.toInt(),
+    energySavedKwh: (json['energySavedKwh'] as num?)?.toDouble(),
+    fabricType: json['fabricType'] as String?,
+    runtimeMinutes: (json['runtimeMinutes'] as num?)?.toInt() ?? 0,
+    operatingMode: DeviceOperatingMode.values.firstWhere(
+      (mode) => mode.name == json['operatingMode'],
+      orElse: () => DeviceOperatingMode.automatic,
+    ),
+    history: (json['history'] as List<dynamic>? ?? const [])
+        .map(
+          (item) => DeviceHistoryRecord.fromJson(item as Map<String, dynamic>),
+        )
+        .toList(growable: false),
+    sessionId: json['sessionId'] as String?,
+    maxLoadKg:
+        (json['maxLoadKg'] as num?)?.toDouble() ?? DeviceData.defaultMaxLoadKg,
+  );
 
   final String deviceId;
   final bool isActive;
@@ -56,6 +60,9 @@ class DeviceDetailData {
 
   /// Weight of the running load, entered when the cycle starts.
   final double? loadCapacityKg;
+
+  /// The most this dryer can hold; the Load Capacity gauge fills toward it.
+  final double maxLoadKg;
 
   /// Null when no cycle is running or it has no set runtime.
   final int? timeRemainingMinutes;
@@ -73,6 +80,7 @@ class DeviceDetailData {
   /// A copy showing newer live values; a null value keeps the current one.
   DeviceDetailData withLiveReading({
     double? chamberTemperatureCelsius,
+    double? thermalChargePercent,
     double? energySavedKwh,
   }) => DeviceDetailData(
     deviceId: deviceId,
@@ -80,7 +88,7 @@ class DeviceDetailData {
     timeStarted: timeStarted,
     chamberTemperatureCelsius:
         chamberTemperatureCelsius ?? this.chamberTemperatureCelsius,
-    thermalChargePercent: thermalChargePercent,
+    thermalChargePercent: thermalChargePercent ?? this.thermalChargePercent,
     loadCapacityKg: loadCapacityKg,
     timeRemainingMinutes: timeRemainingMinutes,
     energySavedKwh: energySavedKwh ?? this.energySavedKwh,
@@ -89,6 +97,7 @@ class DeviceDetailData {
     operatingMode: operatingMode,
     history: history,
     sessionId: sessionId,
+    maxLoadKg: maxLoadKg,
   );
 }
 
@@ -133,8 +142,12 @@ class DeviceCycleSettings {
   const DeviceCycleSettings({
     required this.fabricType,
     required this.runtimeMinutes,
+    this.loadKg,
   });
 
   final String? fabricType;
   final int runtimeMinutes;
+
+  /// Weight of the laundry for this job, in kg.
+  final double? loadKg;
 }

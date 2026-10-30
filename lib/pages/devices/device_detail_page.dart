@@ -6,8 +6,10 @@ import 'package:flutter_svg/flutter_svg.dart';
 
 import 'package:insol8_mobile/models/device_data.dart';
 import 'package:insol8_mobile/models/device_detail_data.dart';
+import 'package:insol8_mobile/models/device_management_data.dart';
 import 'package:insol8_mobile/pages/devices/device_cycle_control_panel.dart';
 import 'package:insol8_mobile/pages/devices/device_history_section.dart';
+import 'package:insol8_mobile/pages/devices/device_management_page.dart';
 import 'package:insol8_mobile/pages/devices/device_summary_card.dart';
 import 'package:insol8_mobile/services/auth_repository.dart';
 import 'package:insol8_mobile/services/device_repository.dart';
@@ -38,7 +40,7 @@ class DeviceDetailPage extends StatefulWidget {
 }
 
 class _DeviceDetailPageState extends State<DeviceDetailPage> {
-  late final String _deviceName = widget.device.name;
+  late String _deviceName = widget.device.name;
   DeviceDetailData? _details;
   DeviceHistoryPeriod _selectedPeriod = DeviceHistoryPeriod.pastMonths;
   String? _fabricType;
@@ -91,6 +93,7 @@ class _DeviceDetailPageState extends State<DeviceDetailPage> {
     setState(
       () => _details = details.withLiveReading(
         chamberTemperatureCelsius: batch.latestChamberTemperature,
+        thermalChargePercent: batch.latestThermalChargePercent,
         energySavedKwh: batch.latestEnergySavedKwh,
       ),
     );
@@ -150,6 +153,25 @@ class _DeviceDetailPageState extends State<DeviceDetailPage> {
     }
   }
 
+  // Device management renames or unregisters the dryer. An unregistered dryer
+  // closes this page with true, which removes it from the devices list.
+  Future<void> _openDeviceManagement() async {
+    final result = await Navigator.of(context).push<DeviceManagementResult>(
+      MaterialPageRoute<DeviceManagementResult>(
+        builder: (_) => DeviceManagementPage(
+          device: widget.device,
+          deviceRepository: widget.deviceRepository,
+        ),
+      ),
+    );
+    if (!mounted || result == null) return;
+    if (result.unregistered) {
+      Navigator.of(context).pop(true);
+      return;
+    }
+    setState(() => _deviceName = result.deviceName);
+  }
+
   Future<void> _toggleOperatingMode() async {
     final previousMode = _operatingMode;
     final nextMode = previousMode == DeviceOperatingMode.automatic
@@ -199,13 +221,18 @@ class _DeviceDetailPageState extends State<DeviceDetailPage> {
                     batteryPercent: widget.device.batteryPercent,
                     cycleDuration: widget.device.cycleDuration,
                     lastUpdated: widget.device.lastUpdated,
+                    maxLoadKg: widget.device.maxLoadKg,
                   ),
                 ),
                 leadingTooltip: 'Back to devices',
-                trailing: SvgPicture.asset(
-                  'assets/icons/device_management_tune.svg',
-                  width: 18,
-                  height: 18,
+                trailing: IconButton(
+                  tooltip: 'Device management',
+                  onPressed: _openDeviceManagement,
+                  icon: SvgPicture.asset(
+                    'assets/icons/device_management_tune.svg',
+                    width: 18,
+                    height: 18,
+                  ),
                 ),
               ),
             ),
@@ -262,34 +289,41 @@ class _DeviceDetailPageState extends State<DeviceDetailPage> {
     }
 
     final details = _details!;
-    return ListView(
-      padding: const EdgeInsets.fromLTRB(
-        AppSpacing.pageHorizontal,
-        12,
-        AppSpacing.pageHorizontal,
-        18,
-      ),
-      children: [
-        DeviceSummaryCard(details: details),
-        const SizedBox(height: 16),
-        DeviceCycleControlPanel(
-          fabricType: _fabricType,
-          runtimeMinutes: _runtimeMinutes,
-          onFabricChanged: (fabricType) =>
-              _updateCycleSettings(fabricType: fabricType),
-          onRuntimeChanged: (minutes) =>
-              _updateCycleSettings(runtimeMinutes: minutes),
-        ),
-        const SizedBox(height: 16),
-        DeviceHistorySection(
-          records: details.history,
-          selectedPeriod: _selectedPeriod,
-          onPeriodSelected: (period) =>
-              setState(() => _selectedPeriod = period),
-        ),
-      ],
+    // Pull down to reload the device, its running job and its history.
+    return RefreshIndicator(
+      onRefresh: _loadDetails,
+      child: _buildDetails(details),
     );
   }
+
+  Widget _buildDetails(DeviceDetailData details) => ListView(
+    // Lets the pull work even when everything fits on screen.
+    physics: const AlwaysScrollableScrollPhysics(),
+    padding: const EdgeInsets.fromLTRB(
+      AppSpacing.pageHorizontal,
+      12,
+      AppSpacing.pageHorizontal,
+      18,
+    ),
+    children: [
+      DeviceSummaryCard(details: details),
+      const SizedBox(height: 16),
+      DeviceCycleControlPanel(
+        fabricType: _fabricType,
+        runtimeMinutes: _runtimeMinutes,
+        onFabricChanged: (fabricType) =>
+            _updateCycleSettings(fabricType: fabricType),
+        onRuntimeChanged: (minutes) =>
+            _updateCycleSettings(runtimeMinutes: minutes),
+      ),
+      const SizedBox(height: 16),
+      DeviceHistorySection(
+        records: details.history,
+        selectedPeriod: _selectedPeriod,
+        onPeriodSelected: (period) => setState(() => _selectedPeriod = period),
+      ),
+    ],
+  );
 }
 
 class _DeviceDetailError extends StatelessWidget {

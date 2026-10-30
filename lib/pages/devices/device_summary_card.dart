@@ -25,7 +25,8 @@ class DeviceSummaryCard extends StatelessWidget {
       _GaugeMetric(
         title: 'Load Capacity',
         value: '${_number(details.loadCapacityKg)}kg',
-        progress: details.loadCapacityKg == null ? 0 : 0.78,
+        // How full the dryer is: this job's load out of the most it holds.
+        progress: _fraction(details.loadCapacityKg, details.maxLoadKg),
       ),
       _GaugeMetric(
         title: 'Time Remaining',
