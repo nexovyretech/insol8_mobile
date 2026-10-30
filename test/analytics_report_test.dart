@@ -59,7 +59,7 @@ void main() {
     final insights = AnalyticsInsights(_data, AnalyticsPeriod.thisWeek);
     expect(
       insights.summary,
-      '12 loads were dried this week, taking 1 h 15 min on average. '
+      '12 loads were dried this week, taking 1 hr 15 min on average. '
       'Dryers saved 98.4 kWh of electricity, worth about PHP 1,234.50.',
     );
     expect(

@@ -299,7 +299,9 @@ class _MetricCards extends StatelessWidget {
         ),
         1 => _AnalyticsMetric(
           label: 'Avg. drying time',
-          value: '${data.averageDryingHours.toStringAsFixed(2)}hr/s',
+          value:
+              '${data.averageDryingHours.toStringAsFixed(2)} '
+              '${data.averageDryingHours <= 1 ? 'hr' : 'hrs'}',
           note: 'Per finished job',
           icon: Icons.timer_outlined,
         ),

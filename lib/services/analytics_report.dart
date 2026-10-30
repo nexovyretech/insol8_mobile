@@ -269,8 +269,10 @@ String periodRange(AnalyticsPeriod period, DateTime now) {
 String formatHours(double hours) {
   final minutes = (hours * 60).round();
   if (minutes < 60) return '$minutes min';
+  final whole = minutes ~/ 60;
+  final hr = whole == 1 ? 'hr' : 'hrs';
   final rest = minutes % 60;
-  return rest == 0 ? '${minutes ~/ 60} h' : '${minutes ~/ 60} h $rest min';
+  return rest == 0 ? '$whole $hr' : '$whole $hr $rest min';
 }
 
 String formatKwh(double kwh) => '${_grouped(kwh, kwh < 10 ? 2 : 1)} kWh';
