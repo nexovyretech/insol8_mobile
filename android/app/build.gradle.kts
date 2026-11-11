@@ -60,17 +60,23 @@ android {
 
     buildTypes {
         release {
-            signingConfig = when {
-                hasReleaseKey -> signingConfigs.getByName("release")
-                isCi -> throw GradleException(
-                    "Release build in CI without android/key.properties. " +
-                        "Check the ANDROID_KEYSTORE_* secrets in the workflow."
-                )
-                // Local machine without the key: fall back to debug so `flutter run --release`
-                // still works. These APKs cannot update a release-signed install.
-                else -> signingConfigs.getByName("debug")
-            }
+            // Without the key (local machine) fall back to debug so `flutter run --release`
+            // still works. Those APKs cannot update a release-signed install.
+            signingConfig = signingConfigs.getByName(if (hasReleaseKey) "release" else "debug")
         }
+    }
+}
+
+// In CI, a release build without the real key must fail loudly instead of quietly shipping a
+// debug-signed APK. Checked once the task graph is known, so debug builds in CI are unaffected
+// (this block is configured for every build, not just release ones).
+gradle.taskGraph.whenReady {
+    val buildsRelease = allTasks.any { it.project == project && it.name.contains("Release") }
+    if (isCi && !hasReleaseKey && buildsRelease) {
+        throw GradleException(
+            "Release build in CI without android/key.properties. " +
+                "Check the ANDROID_KEYSTORE_* secrets in the workflow."
+        )
     }
 }
 
