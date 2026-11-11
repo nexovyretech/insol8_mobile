@@ -10,7 +10,8 @@ name: Mobile CD (UAT beta on AWS)
 #   BUILDS_BUCKET    stack output BuildsBucketName
 #   API_BASE_URL     the backend URL baked into the app
 #   PORTAL_URL       (optional) stack output PortalUrl, shown in the run summary
-# There are no secrets: AWS access uses GitHub's OIDC token, not stored keys.
+# AWS access uses GitHub's OIDC token, not stored keys. The only secrets are the
+# ANDROID_KEYSTORE_* values used to sign the APK (see "Set up release signing").
 #
 # If your repo is private on a plan without Environments, delete the `environment:` line
 # and store the variables as repository variables. Then deploy the stack with
@@ -51,6 +52,30 @@ jobs:
       - run: flutter pub get
       - run: flutter analyze
       - run: flutter test
+
+      # Recreates the release keystore from secrets so every build is signed with the same key.
+      # Secrets (Settings -> Environments -> production -> Secrets):
+      #   ANDROID_KEYSTORE_BASE64   base64 of upload-keystore.jks
+      #   ANDROID_KEYSTORE_PASSWORD keystore password
+      #   ANDROID_KEY_ALIAS         key alias (e.g. upload)
+      #   ANDROID_KEY_PASSWORD      key password
+      - name: Set up release signing
+        env:
+          KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          if [ -z "$KEYSTORE_BASE64" ]; then
+            echo "::error::ANDROID_KEYSTORE_BASE64 secret is missing"; exit 1
+          fi
+          printf '%s' "$KEYSTORE_BASE64" | base64 --decode > android/upload-keystore.jks
+          {
+            echo "storeFile=upload-keystore.jks"
+            echo "storePassword=$KEYSTORE_PASSWORD"
+            echo "keyAlias=$KEY_ALIAS"
+            echo "keyPassword=$KEY_PASSWORD"
+          } > android/key.properties
 
       - name: Build release APK
         env:

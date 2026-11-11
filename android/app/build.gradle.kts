@@ -1,8 +1,25 @@
+import java.io.FileInputStream
+import java.util.Properties
+
 plugins {
     id("com.android.application")
     // The Flutter Gradle Plugin must be applied after the Android and Kotlin Gradle plugins.
     id("dev.flutter.flutter-gradle-plugin")
 }
+
+// Release signing. The keystore details live in android/key.properties, which is gitignored
+// and never committed. Locally you create that file yourself; in CI the workflow writes it
+// from GitHub Secrets. Every release build MUST use the same key, or Android refuses to
+// install an update over the existing app.
+val keystorePropertiesFile = rootProject.file("key.properties")
+val keystoreProperties = Properties()
+if (keystorePropertiesFile.exists()) {
+    FileInputStream(keystorePropertiesFile).use { keystoreProperties.load(it) }
+}
+val hasReleaseKey = keystorePropertiesFile.exists()
+// GitHub Actions sets CI=true. A CI release build without the real key must fail loudly
+// instead of quietly shipping a debug-signed APK that can't update the installed app.
+val isCi = System.getenv("CI") == "true"
 
 android {
     namespace = "com.insol8.mobile"
@@ -29,11 +46,30 @@ android {
         versionName = flutter.versionName
     }
 
+    signingConfigs {
+        if (hasReleaseKey) {
+            create("release") {
+                keyAlias = keystoreProperties.getProperty("keyAlias")
+                keyPassword = keystoreProperties.getProperty("keyPassword")
+                // storeFile is resolved relative to the android/ folder.
+                storeFile = rootProject.file(keystoreProperties.getProperty("storeFile"))
+                storePassword = keystoreProperties.getProperty("storePassword")
+            }
+        }
+    }
+
     buildTypes {
         release {
-            // TODO: Add your own signing config for the release build.
-            // Signing with the debug keys for now, so `flutter run --release` works.
-            signingConfig = signingConfigs.getByName("debug")
+            signingConfig = when {
+                hasReleaseKey -> signingConfigs.getByName("release")
+                isCi -> throw GradleException(
+                    "Release build in CI without android/key.properties. " +
+                        "Check the ANDROID_KEYSTORE_* secrets in the workflow."
+                )
+                // Local machine without the key: fall back to debug so `flutter run --release`
+                // still works. These APKs cannot update a release-signed install.
+                else -> signingConfigs.getByName("debug")
+            }
         }
     }
 }
