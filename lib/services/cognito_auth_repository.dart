@@ -12,14 +12,18 @@ import 'package:insol8_mobile/services/auth_repository.dart';
 /// Authentication backed by the InSOL8 Cognito user pool (via Amplify) and the
 /// InSOL8 API for app profiles stored in Neon.
 ///
-/// Sign-up UI order is name → email → code → password → username, but Cognito
-/// needs a password before it sends the confirmation code. To keep that order
-/// without storing anything sensitive, sign-up registers the account with a
-/// random one-time password held only in memory, confirms the emailed code,
-/// signs in with that one-time password, and then replaces it with the user's
-/// chosen password through Cognito's change-password API. If the app closes
-/// between those steps, the verified account can still be recovered with
-/// "Forgot password".
+/// Sign-up UI order is name → email or mobile → code → password → username,
+/// but Cognito needs a password before it sends the confirmation code. To keep
+/// that order without storing anything sensitive, sign-up registers the
+/// account with a random one-time password held only in memory, confirms the
+/// code (emailed, or texted by the backend's Custom SMS sender for mobile
+/// numbers), signs in with that one-time password, and then replaces it with
+/// the user's chosen password through Cognito's change-password API. If the
+/// app closes between those steps, the verified account can still be
+/// recovered with "Forgot password".
+///
+/// Mobile numbers must be Philippine mobiles (+639XXXXXXXXX); the backend's
+/// Pre sign-up trigger and profile API reject anything else.
 class CognitoAuthRepository implements AuthRepository {
   CognitoAuthRepository({ApiClient? apiClient})
     : _api = apiClient ?? ApiClient();
@@ -94,6 +98,10 @@ class CognitoAuthRepository implements AuthRepository {
     final session = await Amplify.Auth.fetchAuthSession() as CognitoAuthSession;
     final idToken = session.userPoolTokensResult.value.idToken;
     final email = idToken.email;
+    // The API only accepts a mobile number Cognito has verified.
+    final mobileNumber = idToken.phoneNumberVerified == true
+        ? idToken.phoneNumber
+        : null;
     final fullName = (idToken.name ?? '').trim().split(RegExp(r'\s+'));
     var firstName =
         idToken.givenName ??
@@ -113,6 +121,7 @@ class CognitoAuthRepository implements AuthRepository {
           'firstName': clamp(firstName),
           'lastName': clamp(lastName),
           'email': ?email,
+          'mobileNumber': ?mobileNumber,
         }),
       );
     } on ApiException catch (error) {
@@ -199,17 +208,13 @@ class CognitoAuthRepository implements AuthRepository {
     String? firstName,
     String? lastName,
   }) async {
-    if (method == SignUpContactMethod.mobile) {
-      throw const AuthFailure(
-        'Signing up with a mobile number isn’t available yet. Please use your email address.',
-      );
-    }
-    // One spelling per address, so "Juan@Mail.com" can't become a second
-    // account next to "juan@mail.com" (the backend trigger checks both).
-    final email = contact.trim().toLowerCase();
+    final normalized = _normalizeContact(contact, method);
     final pending = _pending;
-    if (pending != null && pending.email == email && !pending.confirmed) {
-      // Same email as an unfinished attempt: resend instead of creating
+    if (pending != null &&
+        pending.contact == normalized &&
+        pending.method == method &&
+        !pending.confirmed) {
+      // Same contact as an unfinished attempt: resend instead of creating
       // another unconfirmed account.
       await _guard(
         () => Amplify.Auth.resendSignUpCode(username: pending.username),
@@ -220,7 +225,8 @@ class CognitoAuthRepository implements AuthRepository {
     final next = _PendingSignUp(
       username: _randomId(),
       oneTimePassword: _randomPassword(),
-      email: email,
+      contact: normalized,
+      method: method,
     );
     await _guard(
       () => Amplify.Auth.signUp(
@@ -228,7 +234,10 @@ class CognitoAuthRepository implements AuthRepository {
         password: next.oneTimePassword,
         options: SignUpOptions(
           userAttributes: {
-            AuthUserAttributeKey.email: email,
+            if (method == SignUpContactMethod.email)
+              AuthUserAttributeKey.email: normalized
+            else
+              AuthUserAttributeKey.phoneNumber: normalized,
             AuthUserAttributeKey.givenName: ?firstName,
             AuthUserAttributeKey.familyName: ?lastName,
           },
@@ -236,6 +245,19 @@ class CognitoAuthRepository implements AuthRepository {
       ),
     );
     _pending = next;
+  }
+
+  /// One spelling per contact, so "Juan@Mail.com" can't become a second
+  /// account next to "juan@mail.com", and "0917…" matches "+63917…" (the
+  /// backend trigger checks both).
+  static String _normalizeContact(String contact, SignUpContactMethod method) {
+    if (method == SignUpContactMethod.email) {
+      return contact.trim().toLowerCase();
+    }
+    return _normalizePhilippineMobile(contact) ??
+        (throw const AuthFailure(
+          'Enter a Philippine mobile number that starts with 9, like 917 123 4567.',
+        ));
   }
 
   @override
@@ -272,8 +294,10 @@ class CognitoAuthRepository implements AuthRepository {
       ),
     );
     if (!result.isSignedIn) {
-      throw const AuthFailure(
-        'Your email is verified. Please sign in to continue.',
+      throw AuthFailure(
+        pending.method == SignUpContactMethod.email
+            ? 'Your email is verified. Please sign in to continue.'
+            : 'Your mobile number is verified. Please sign in to continue.',
       );
     }
   }
@@ -282,8 +306,10 @@ class CognitoAuthRepository implements AuthRepository {
   Future<void> beginSignUp(SignUpData data) async {
     final pending = _requirePending();
     if (!pending.confirmed) {
-      throw const AuthFailure(
-        'Verify your email before creating your account.',
+      throw AuthFailure(
+        pending.method == SignUpContactMethod.email
+            ? 'Verify your email before creating your account.'
+            : 'Verify your mobile number before creating your account.',
       );
     }
     // Usernames are unique regardless of case; the API stores them lowercase.
@@ -306,7 +332,10 @@ class CognitoAuthRepository implements AuthRepository {
       await _api.post('/me', {
         'firstName': data.firstName,
         'lastName': data.lastName,
-        'email': pending.email,
+        if (pending.method == SignUpContactMethod.email)
+          'email': pending.contact
+        else
+          'mobileNumber': pending.contact,
         'username': username,
       });
     } on ApiException catch (error) {
@@ -336,7 +365,7 @@ class CognitoAuthRepository implements AuthRepository {
         return _landingAfterSignIn();
       case AuthSignInStep.confirmSignUp:
         throw const AuthFailure(
-          'This account hasn’t been verified. Please sign up again with the same email to get a new code.',
+          'This account hasn’t been verified. Please sign up again with the same email or mobile number to get a new code.',
         );
       case AuthSignInStep.resetPassword:
         throw const AuthFailure(
@@ -378,21 +407,28 @@ class CognitoAuthRepository implements AuthRepository {
     await Amplify.Auth.signOut();
   }
 
-  /// Reset identifiers are emails, stored lowercase.
-  static String _resetEmail(String identifier) =>
-      identifier.trim().toLowerCase();
+  /// Reset identifiers are emails (stored lowercase) or Philippine mobile
+  /// numbers (+639XXXXXXXXX). Both are Cognito sign-in aliases, which work
+  /// once verified, so Cognito finds the account from either.
+  static String _resetIdentifier(String identifier) {
+    final value = identifier.trim();
+    if (_emailPattern.hasMatch(value)) return value.toLowerCase();
+    return _normalizePhilippineMobile(value) ??
+        (throw const AuthFailure(
+          'Enter the email or Philippine mobile number on your account.',
+        ));
+  }
 
+  /// Cognito sends the code to the account's verified email if it has one,
+  /// otherwise by SMS to its verified mobile number (the pool's account
+  /// recovery order), whichever identifier was entered.
   @override
   Future<void> requestPasswordReset({required String identifier}) async {
-    final email = _resetEmail(identifier);
-    if (!_emailPattern.hasMatch(email)) {
-      throw const AuthFailure(
-        'Password reset by mobile number isn’t available yet. Use the email on your account.',
-      );
-    }
+    final username = _resetIdentifier(identifier);
     // With user-existence errors prevented, Cognito responds the same way for
-    // unknown emails, so the UI never reveals whether an account exists.
-    await _guard(() => Amplify.Auth.resetPassword(username: email));
+    // unknown emails and numbers, so the UI never reveals whether an account
+    // exists.
+    await _guard(() => Amplify.Auth.resetPassword(username: username));
   }
 
   @override
@@ -414,11 +450,12 @@ class CognitoAuthRepository implements AuthRepository {
     required String code,
   }) async {
     if (!RegExp(r'^\d{6}$').hasMatch(code)) {
-      throw const AuthFailure('Enter the 6-digit code from your email.');
+      throw const AuthFailure('Enter the 6-digit code we sent you.');
     }
+    final username = _resetIdentifier(identifier);
     try {
       await Amplify.Auth.confirmResetPassword(
-        username: _resetEmail(identifier),
+        username: username,
         newPassword: _unacceptablePassword(),
         confirmationCode: code,
       );
@@ -452,9 +489,10 @@ class CognitoAuthRepository implements AuthRepository {
     required String code,
     required String newPassword,
   }) async {
+    final username = _resetIdentifier(identifier);
     await _guard(
       () => Amplify.Auth.confirmResetPassword(
-        username: _resetEmail(identifier),
+        username: username,
         newPassword: newPassword,
         confirmationCode: code,
       ),
@@ -489,7 +527,7 @@ class CognitoAuthRepository implements AuthRepository {
   _PendingSignUp _requirePending() =>
       _pending ??
       (throw const AuthFailure(
-        'Your sign-up session has expired. Please enter your email again.',
+        'Your sign-up session has expired. Please enter your email or mobile number again.',
       ));
 
   Future<void> _signOutIfSignedIn() async {
@@ -516,18 +554,18 @@ class CognitoAuthRepository implements AuthRepository {
     NotAuthorizedServiceException() =>
       'Incorrect username, email, or password.',
     UserNotFoundException() => 'Incorrect username, email, or password.',
-    UserNotConfirmedException() => 'This account hasn’t been verified yet. Please sign up again with the same email.',
+    UserNotConfirmedException() => 'This account hasn’t been verified yet. Please sign up again with the same email or mobile number.',
     PasswordResetRequiredException() =>
       'You need to reset your password. Use “Forgot password” to continue.',
     CodeMismatchException() =>
       'That code is incorrect. Check it and try again.',
     ExpiredCodeException() => 'That code has expired. Request a new one.',
-    AliasExistsException() => 'An account with this email already exists. Sign in or reset your password.',
+    AliasExistsException() => 'An account with this email or mobile number already exists. Sign in or reset your password.',
     UsernameExistsException() =>
       'An account with these details already exists. Sign in instead.',
     InvalidPasswordException() => 'Use at least 8 characters with an uppercase letter, a lowercase letter, and a number.',
     CodeDeliveryFailureException() =>
-      'We couldn’t deliver the code. Check the address and try again.',
+      'We couldn’t deliver the code. Check your email or mobile number and try again.',
     LimitExceededException() ||
     TooManyRequestsException() ||
     TooManyFailedAttemptsException() =>
@@ -540,6 +578,14 @@ class CognitoAuthRepository implements AuthRepository {
         when message.contains('EMAIL_IN_USE_GOOGLE') =>
       'This email is registered with Google. Use “Continue with Google” to sign in.',
     LambdaException(:final message) when message.contains('EMAIL_IN_USE') => 'An account with this email already exists. Sign in with your email and password, or reset your password.',
+    LambdaException(:final message) when message.contains('PHONE_IN_USE') =>
+      'An account with this mobile number already exists. Sign in with your mobile number and password, or reset your password.',
+    LambdaException(:final message)
+        when message.contains('PHONE_NOT_SUPPORTED') =>
+      'Only Philippine mobile numbers (+63 9XX XXX XXXX) are supported.',
+    LambdaException(:final message)
+        when message.contains('EMAIL_OR_PHONE_REQUIRED') =>
+      'Enter an email address or a mobile number.',
     _ => 'Something went wrong. Please try again.',
   };
 
@@ -550,6 +596,8 @@ class CognitoAuthRepository implements AuthRepository {
         400 => 'Some of your details aren’t valid. Check them and try again.',
         409 when error.code == 'EMAIL_NOT_VERIFIED' =>
           'Your new email isn’t verified yet. Please request a new code.',
+        409 when error.code == 'MOBILE_NUMBER_NOT_VERIFIED' =>
+          'Your mobile number isn’t verified yet. Please request a new code.',
         409 => 'That username is already taken. Try another one.',
         _ => 'We couldn’t reach inSOL8 right now. Please try again.',
       });
@@ -584,12 +632,16 @@ class _PendingSignUp {
   _PendingSignUp({
     required this.username,
     required this.oneTimePassword,
-    required this.email,
+    required this.contact,
+    required this.method,
   });
 
   final String username;
   final String oneTimePassword;
-  final String email;
+
+  /// Lowercase email or +639XXXXXXXXX mobile number, per [method].
+  final String contact;
+  final SignUpContactMethod method;
   bool confirmed = false;
   bool passwordSet = false;
 }

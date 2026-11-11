@@ -194,16 +194,19 @@ void main() {
       );
     });
 
-    test('mobile sign-up and mobile reset are refused honestly', () async {
+    // Only Philippine mobiles (+639XXXXXXXXX) can sign up or reset; other
+    // numbers are refused in the app before anything reaches Cognito, so no
+    // SMS credit is spent.
+    test('non-Philippine mobile sign-up and reset are refused before any code', () async {
       await expectLater(
         auth.requestVerificationCode(
-          contact: '+639171234567',
+          contact: '+638171234567',
           method: SignUpContactMethod.mobile,
         ),
         throwsA(isA<AuthFailure>()),
       );
       await expectLater(
-        auth.requestPasswordReset(identifier: '+639171234567'),
+        auth.requestPasswordReset(identifier: '+14155550123'),
         throwsA(isA<AuthFailure>()),
       );
     });
