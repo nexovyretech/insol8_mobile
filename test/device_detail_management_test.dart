@@ -55,18 +55,19 @@ class _Devices implements DeviceRepository {
       );
 
   @override
-  Future<DeviceManagementData> fetchManagementDetails(DeviceData device) async =>
-      DeviceManagementData(
-        device: device,
-        serialId: device.id,
-        modelType: null,
-        firmwareVersion: null,
-        status: DeviceStatus.idle,
-        pcmReservePercent: null,
-        currentBranch: 'Unassigned',
-        availableBranches: const [],
-        hasRunningJob: hasRunningJob,
-      );
+  Future<DeviceManagementData> fetchManagementDetails(
+    DeviceData device,
+  ) async => DeviceManagementData(
+    device: device,
+    serialId: device.id,
+    modelType: null,
+    firmwareVersion: null,
+    status: DeviceStatus.idle,
+    pcmReservePercent: null,
+    currentBranch: 'Unassigned',
+    availableBranches: const [],
+    hasRunningJob: hasRunningJob,
+  );
 
   @override
   Future<void> unregisterDevice(String deviceId) async {
