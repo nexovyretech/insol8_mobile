@@ -179,7 +179,8 @@ class _AccountProfilePageState extends State<AccountProfilePage> {
       );
       if (code == null || !mounted) return;
       final result = await _save(
-        () => widget.authRepository.confirmEmailChange(email: email, code: code),
+        () =>
+            widget.authRepository.confirmEmailChange(email: email, code: code),
       );
       if (result != _SaveResult.codeError) return;
     }

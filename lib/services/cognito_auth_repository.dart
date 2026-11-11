@@ -165,8 +165,8 @@ class CognitoAuthRepository implements AuthRepository {
   Future<void> requestEmailChange(String email) async {
     // Google accounts get their email from Google on every sign-in, and their
     // tokens lack the scope Cognito needs to update attributes.
-    final session = await _guard(Amplify.Auth.fetchAuthSession)
-        as CognitoAuthSession;
+    final session =
+        await _guard(Amplify.Auth.fetchAuthSession) as CognitoAuthSession;
     final idToken = session.userPoolTokensResult.value.idToken;
     if (idToken.claims.customClaims['identities'] != null) {
       throw const AuthFailure(
@@ -564,8 +564,7 @@ class CognitoAuthRepository implements AuthRepository {
     UsernameExistsException() =>
       'An account with these details already exists. Sign in instead.',
     InvalidPasswordException() => 'Use at least 8 characters with an uppercase letter, a lowercase letter, and a number.',
-    CodeDeliveryFailureException() =>
-      'We couldn’t deliver the code. Check your email or mobile number and try again.',
+    CodeDeliveryFailureException() => 'We couldn’t deliver the code. Check your email or mobile number and try again.',
     LimitExceededException() ||
     TooManyRequestsException() ||
     TooManyFailedAttemptsException() =>
@@ -578,8 +577,7 @@ class CognitoAuthRepository implements AuthRepository {
         when message.contains('EMAIL_IN_USE_GOOGLE') =>
       'This email is registered with Google. Use “Continue with Google” to sign in.',
     LambdaException(:final message) when message.contains('EMAIL_IN_USE') => 'An account with this email already exists. Sign in with your email and password, or reset your password.',
-    LambdaException(:final message) when message.contains('PHONE_IN_USE') =>
-      'An account with this mobile number already exists. Sign in with your mobile number and password, or reset your password.',
+    LambdaException(:final message) when message.contains('PHONE_IN_USE') => 'An account with this mobile number already exists. Sign in with your mobile number and password, or reset your password.',
     LambdaException(:final message)
         when message.contains('PHONE_NOT_SUPPORTED') =>
       'Only Philippine mobile numbers (+63 9XX XXX XXXX) are supported.',
