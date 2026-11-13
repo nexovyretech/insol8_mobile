@@ -6,27 +6,22 @@ Description: >
   short-lived download links, and a static portal on CloudFront is the page testers sign in to.
 
 Parameters:
-  GitHubSubject:
-    Type: String
-    Description: >
-      Which GitHub workflow runs may assume the upload role (the OIDC "sub" claim).
-      Default matches the mobile-cd.yml job that uses the 'production' environment.
-      Example: repo:my-org/insol8-mobile:environment:production
-      If you do NOT use a GitHub environment, use repo:my-org/insol8-mobile:ref:refs/tags/v*
-  ExistingOidcProviderArn:
-    Type: String
-    Default: ''
-    Description: >
-      Leave empty to create the GitHub OIDC provider. If your AWS account already has one
-      (only one is allowed per account), paste its ARN here.
   BuildRetentionDays:
     Type: Number
     Default: 90
     MinValue: 7
     Description: APKs older than this are deleted automatically.
+  EnablePortal:
+    Type: String
+    Default: 'false'
+    AllowedValues: ['true', 'false']
+    Description: >
+      Create the tester download portal (S3 + CloudFront). Off by default because CloudFront
+      is locked on this account until AWS Support verifies it. Everything else (builds bucket,
+      upload user, builds API) works without it.
 
 Conditions:
-  CreateOidcProvider: !Equals [!Ref ExistingOidcProviderArn, '']
+  PortalEnabled: !Equals [!Ref EnablePortal, 'true']
 
 Resources:
   # ---------------------------------------------------------------- storage
@@ -50,6 +45,7 @@ Resources:
             ExpirationInDays: !Ref BuildRetentionDays
 
   PortalBucket:
+    Condition: PortalEnabled
     Type: AWS::S3::Bucket
     Properties:
       PublicAccessBlockConfiguration:
@@ -64,6 +60,7 @@ Resources:
 
   # ---------------------------------------------------------------- portal hosting (HTTPS via CloudFront)
   PortalOac:
+    Condition: PortalEnabled
     Type: AWS::CloudFront::OriginAccessControl
     Properties:
       OriginAccessControlConfig:
@@ -73,6 +70,7 @@ Resources:
         SigningProtocol: sigv4
 
   PortalDistribution:
+    Condition: PortalEnabled
     Type: AWS::CloudFront::Distribution
     Properties:
       DistributionConfig:
@@ -98,6 +96,7 @@ Resources:
           ResponseHeadersPolicyId: 67f7725c-6f97-4210-82d7-5512b698a8ac
 
   PortalBucketPolicy:
+    Condition: PortalEnabled
     Type: AWS::S3::BucketPolicy
     Properties:
       Bucket: !Ref PortalBucket
@@ -126,10 +125,15 @@ Resources:
         AllowAdminCreateUserOnly: true
         InviteMessageTemplate:
           EmailSubject: InSOL8 beta access
-          EmailMessage: !Sub >-
-            You have been invited to test the InSOL8 mobile app.
-            Sign in at https://${PortalDistribution.DomainName}/ with the email address
-            {username} and the temporary password {####}. You will be asked to choose a new password.
+          EmailMessage: !If
+            - PortalEnabled
+            - !Sub >-
+              You have been invited to test the InSOL8 mobile app.
+              Sign in at https://${PortalDistribution.DomainName}/ with the email address
+              {username} and the temporary password {####}. You will be asked to choose a new password.
+            - >-
+              You have been invited to test the InSOL8 mobile app. Your sign-in is the email address
+              {username} with the temporary password {####}. The download link will follow separately.
       Policies:
         PasswordPolicy:
           MinimumLength: 12
@@ -160,10 +164,11 @@ Resources:
       AllowedOAuthFlows: [code]
       AllowedOAuthScopes: [openid, email]
       SupportedIdentityProviders: [COGNITO]
+      # Without the portal these point at localhost: the client exists but nothing signs in yet.
       CallbackURLs:
-        - !Sub https://${PortalDistribution.DomainName}/
+        - !If [PortalEnabled, !Sub 'https://${PortalDistribution.DomainName}/', 'http://localhost/']
       LogoutURLs:
-        - !Sub https://${PortalDistribution.DomainName}/
+        - !If [PortalEnabled, !Sub 'https://${PortalDistribution.DomainName}/', 'http://localhost/']
       PreventUserExistenceErrors: ENABLED
       EnableTokenRevocation: true
       IdTokenValidity: 60
@@ -180,7 +185,7 @@ Resources:
     Properties:
       CorsConfiguration:
         AllowOrigins:
-          - !Sub https://${PortalDistribution.DomainName}
+          - !If [PortalEnabled, !Sub 'https://${PortalDistribution.DomainName}', 'http://localhost']
         AllowMethods: [GET]
         AllowHeaders: [authorization]
         MaxAge: 600
@@ -216,32 +221,17 @@ Resources:
             Path: /builds
             Method: GET
 
-  # ---------------------------------------------------------------- GitHub Actions upload role
-  GitHubOidcProvider:
-    Type: AWS::IAM::OIDCProvider
-    Condition: CreateOidcProvider
+  # ---------------------------------------------------------------- GitHub Actions upload user
+  # GitHub OIDC is not available on this account (the AWS free-plan organization policy denies
+  # iam:*OpenIDConnectProvider), so CI signs in with an access key for this user instead.
+  # The user can do exactly one thing: put objects under builds/ in the builds bucket.
+  # The access key is created by hand after deploy (aws iam create-access-key), NOT here, so the
+  # secret never lands in CloudFormation outputs. Rotate it by creating a new key, updating the
+  # GitHub secrets, then deleting the old key.
+  GitHubUploadUser:
+    Type: AWS::IAM::User
     Properties:
-      Url: https://token.actions.githubusercontent.com
-      ClientIdList: [sts.amazonaws.com]
-      ThumbprintList: [6938fd4d98bab03faadb97b34396831e3780aea1]
-
-  GitHubUploadRole:
-    Type: AWS::IAM::Role
-    Properties:
-      RoleName: !Sub ${AWS::StackName}-gha-upload
-      MaxSessionDuration: 3600
-      AssumeRolePolicyDocument:
-        Version: '2012-10-17'
-        Statement:
-          - Effect: Allow
-            Principal:
-              Federated: !If [CreateOidcProvider, !Ref GitHubOidcProvider, !Ref ExistingOidcProviderArn]
-            Action: sts:AssumeRoleWithWebIdentity
-            Condition:
-              StringEquals:
-                token.actions.githubusercontent.com:aud: sts.amazonaws.com
-              StringLike:
-                token.actions.githubusercontent.com:sub: !Ref GitHubSubject
+      UserName: !Sub ${AWS::StackName}-gha-upload
       Policies:
         - PolicyName: upload-apks
           PolicyDocument:
@@ -253,9 +243,11 @@ Resources:
 
 Outputs:
   PortalUrl:
+    Condition: PortalEnabled
     Description: Give this link to testers
     Value: !Sub https://${PortalDistribution.DomainName}/
   PortalBucketName:
+    Condition: PortalEnabled
     Value: !Ref PortalBucket
   BuildsBucketName:
     Description: GitHub variable BUILDS_BUCKET
@@ -269,6 +261,6 @@ Outputs:
     Value: !Sub https://${UserPoolDomain}.auth.${AWS::Region}.amazoncognito.com
   ApiUrl:
     Value: !Sub https://${BetaApi}.execute-api.${AWS::Region}.amazonaws.com
-  UploadRoleArn:
-    Description: GitHub variable AWS_ROLE_ARN
-    Value: !GetAtt GitHubUploadRole.Arn
+  UploadUserName:
+    Description: Create the CI access key for this user (aws iam create-access-key --user-name ...)
+    Value: !Ref GitHubUploadUser

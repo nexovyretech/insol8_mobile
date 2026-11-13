@@ -5,17 +5,20 @@ name: Mobile CD (UAT beta on AWS)
 # Trigger: push a tag such as  v0.4.0   (or run manually from the Actions tab).
 #
 # Variables (Settings -> Environments -> production -> Variables):
-#   AWS_ROLE_ARN     stack output UploadRoleArn
-#   AWS_REGION       region you deployed the stack to
+#   AWS_REGION       region you deployed the stack to (ap-southeast-2)
 #   BUILDS_BUCKET    stack output BuildsBucketName
 #   API_BASE_URL     the backend URL baked into the app
 #   PORTAL_URL       (optional) stack output PortalUrl, shown in the run summary
-# AWS access uses GitHub's OIDC token, not stored keys. The only secrets are the
-# ANDROID_KEYSTORE_* values used to sign the APK (see "Set up release signing").
+# Secrets (same environment):
+#   AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY   access key of the stack's upload-only IAM user
+#                                               (stack output UploadUserName). It can only put
+#                                               objects under builds/ in the builds bucket.
+#   ANDROID_KEYSTORE_*                          used to sign the APK (see "Set up release signing")
+# GitHub OIDC would avoid the stored key, but the AWS free-plan organization policy blocks
+# creating the OIDC provider on this account.
 #
 # If your repo is private on a plan without Environments, delete the `environment:` line
-# and store the variables as repository variables. Then deploy the stack with
-# GitHubSubject = repo:<org>/<repo>:ref:refs/tags/v*
+# and store the variables and secrets at repository level instead.
 
 on:
   push:
@@ -29,7 +32,6 @@ on:
 
 permissions:
   contents: read
-  id-token: write   # lets the job request a short-lived AWS credential
 
 jobs:
   distribute:
@@ -95,7 +97,8 @@ jobs:
 
       - uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: ${{ vars.AWS_ROLE_ARN }}
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ vars.AWS_REGION }}
 
       - name: Upload APK to S3
