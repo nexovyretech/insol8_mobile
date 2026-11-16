@@ -44,6 +44,13 @@ android {
         // flag during build.
         versionCode = flutter.versionCode
         versionName = flutter.versionName
+        // Home-screen label (AndroidManifest uses @string/app_name). Debug overrides it below.
+        resValue("string", "app_name", "inSOL8")
+    }
+
+    buildFeatures {
+        // AGP 9 turns resValue generation off by default; app_name above needs it.
+        resValues = true
     }
 
     signingConfigs {
@@ -59,6 +66,15 @@ android {
     }
 
     buildTypes {
+        // `flutter run` builds a separate "inSOL8 Dev" app (com.insol8.mobile.debug), so it
+        // installs next to the release app from the tester portal instead of conflicting with
+        // it (different signing keys). Both still use the com.insol8.mobile:// sign-in links,
+        // so Android may ask which app should finish a Google sign-in.
+        debug {
+            applicationIdSuffix = ".debug"
+            versionNameSuffix = "-dev"
+            resValue("string", "app_name", "inSOL8 Dev")
+        }
         release {
             // Without the key (local machine) fall back to debug so `flutter run --release`
             // still works. Those APKs cannot update a release-signed install.
