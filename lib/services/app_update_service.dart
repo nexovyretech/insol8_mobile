@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
 
@@ -75,8 +76,12 @@ class MethodChannelAppUpdatePlatform implements AppUpdatePlatform {
 }
 
 /// Checks the backend for a newer APK, downloads it, and opens Android's
-/// installer. Android only: the user still confirms every install, and iOS
-/// cannot install apps this way at all.
+/// installer. Android release builds only: the user still confirms every
+/// install, and iOS cannot install apps this way at all.
+///
+/// Debug and profile builds are the separate "inSOL8 Dev" app
+/// (com.insol8.mobile.debug); the APKs on S3 are the release app, so offering
+/// them there would install a second app instead of updating this one.
 class AppUpdateService {
   AppUpdateService({
     ApiClient? api,
@@ -86,7 +91,7 @@ class AppUpdateService {
   }) : _api = api ?? ApiClient(),
        _platform = platform ?? const MethodChannelAppUpdatePlatform(),
        _http = httpClient ?? http.Client(),
-       _isAndroid = isAndroid ?? Platform.isAndroid;
+       _isAndroid = isAndroid ?? (Platform.isAndroid && kReleaseMode);
 
   final ApiClient _api;
   final AppUpdatePlatform _platform;
