@@ -1,0 +1,299 @@
+import 'dart:convert';
+import 'dart:io';
+
+import 'package:flutter/material.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:http/http.dart' as http;
+import 'package:http/testing.dart';
+import 'package:insol8_mobile/pages/settings/settings_page.dart';
+import 'package:insol8_mobile/services/api_client.dart';
+import 'package:insol8_mobile/services/app_update_service.dart';
+import 'package:insol8_mobile/services/auth_repository.dart';
+import 'package:insol8_mobile/widgets/app_update_listener.dart';
+
+import 'support/fake_repositories.dart';
+
+class _FakePlatform implements AppUpdatePlatform {
+  _FakePlatform({this.build = 3, this.canInstall = true, required this.dir});
+
+  int build;
+  bool canInstall;
+  final Directory dir;
+  final installed = <String>[];
+  var settingsOpened = 0;
+
+  @override
+  Future<int> installedBuild() async => build;
+  @override
+  Future<String> updateDir() async => dir.path;
+  @override
+  Future<bool> canInstallPackages() async => canInstall;
+  @override
+  Future<void> openInstallPermissionSettings() async => settingsOpened++;
+  @override
+  Future<void> installApk(String path) async => installed.add(path);
+}
+
+Map<String, dynamic> _latest({int build = 5, int minSupported = 0}) => {
+  'latest': {
+    'build': build,
+    'version': 'v0.6.0',
+    'notes': 'Faster dashboard',
+    'sizeBytes': 4,
+    'downloadUrl': 'https://s3.test/builds/$build/insol8-$build.apk',
+  },
+  'minSupportedBuild': minSupported,
+};
+
+ApiClient _api(Map<String, dynamic> data, {List<String>? paths}) => ApiClient(
+  client: MockClient((request) async {
+    paths?.add(request.url.path);
+    return http.Response(jsonEncode({'success': true, 'data': data}), 200);
+  }),
+  baseUrl: 'https://api.test',
+  accessToken: () async => 'token',
+);
+
+void main() {
+  late Directory dir;
+  setUp(() => dir = Directory.systemTemp.createTempSync('app_update_test'));
+  tearDown(() => dir.deleteSync(recursive: true));
+
+  group('updateFrom', () {
+    test('offers a newer build', () {
+      final update = AppUpdateService.updateFrom(_latest(), installedBuild: 3);
+      expect(update!.build, 5);
+      expect(update.forced, isFalse);
+      expect(update.version, 'v0.6.0');
+      expect(update.notes, 'Faster dashboard');
+    });
+
+    test('ignores the same or an older build', () {
+      expect(AppUpdateService.updateFrom(_latest(), installedBuild: 5), isNull);
+      expect(AppUpdateService.updateFrom(_latest(), installedBuild: 9), isNull);
+    });
+
+    test('forces the update below minSupportedBuild', () {
+      final data = _latest(minSupported: 4);
+      expect(
+        AppUpdateService.updateFrom(data, installedBuild: 3)!.forced,
+        isTrue,
+      );
+      expect(
+        AppUpdateService.updateFrom(data, installedBuild: 4)!.forced,
+        isFalse,
+      );
+    });
+
+    test('returns null when no build exists yet', () {
+      expect(
+        AppUpdateService.updateFrom({
+          'latest': null,
+          'minSupportedBuild': 0,
+        }, installedBuild: 3),
+        isNull,
+      );
+    });
+  });
+
+  test(
+    'check() asks the backend route and compares the installed build',
+    () async {
+      final paths = <String>[];
+      final service = AppUpdateService(
+        api: _api(_latest(), paths: paths),
+        platform: _FakePlatform(dir: dir, build: 3),
+        isAndroid: true,
+      );
+      expect((await service.check())!.build, 5);
+      expect(paths, ['/app/updates/latest']);
+    },
+  );
+
+  test('check() does nothing off Android', () async {
+    final paths = <String>[];
+    final service = AppUpdateService(
+      api: _api(_latest(), paths: paths),
+      platform: _FakePlatform(dir: dir),
+      isAndroid: false,
+    );
+    expect(await service.check(), isNull);
+    expect(paths, isEmpty);
+  });
+
+  test(
+    'download() fetches a fresh link, saves the APK and replaces old ones',
+    () async {
+      File('${dir.path}/insol8-2.apk').writeAsStringSync('old');
+      final downloaded = <Uri>[];
+      final progress = <double?>[];
+      final service = AppUpdateService(
+        api: _api(_latest()),
+        platform: _FakePlatform(dir: dir),
+        isAndroid: true,
+        httpClient: MockClient.streaming((request, _) async {
+          downloaded.add(request.url);
+          return http.StreamedResponse(
+            Stream.fromIterable([
+              [1, 2],
+              [3, 4],
+            ]),
+            200,
+            contentLength: 4,
+          );
+        }),
+      );
+      final update = AppUpdateService.updateFrom(_latest(), installedBuild: 3)!;
+
+      final path = await service.download(update, onProgress: progress.add);
+
+      expect(File(path).parent.absolute.path, dir.absolute.path);
+      expect(path, endsWith('insol8-5.apk'));
+      expect(File(path).readAsBytesSync(), [1, 2, 3, 4]);
+      expect(File('${dir.path}/insol8-2.apk').existsSync(), isFalse);
+      expect(
+        downloaded.single.toString(),
+        'https://s3.test/builds/5/insol8-5.apk',
+      );
+      expect(progress, [0.5, 1.0]);
+    },
+  );
+
+  test('download() reports a failed download', () async {
+    final service = AppUpdateService(
+      api: _api(_latest()),
+      platform: _FakePlatform(dir: dir),
+      isAndroid: true,
+      httpClient: MockClient((_) async => http.Response('denied', 403)),
+    );
+    final update = AppUpdateService.updateFrom(_latest(), installedBuild: 3)!;
+    expect(service.download(update), throwsA(isA<AppUpdateException>()));
+  });
+
+  group('AppUpdateDialog', () {
+    Future<_FakePlatform> show(
+      WidgetTester tester, {
+      bool forced = false,
+      bool canInstall = true,
+    }) async {
+      final platform = _FakePlatform(dir: dir, canInstall: canInstall);
+      final service = AppUpdateService(
+        api: _api(_latest()),
+        platform: platform,
+        isAndroid: true,
+        httpClient: MockClient((_) async => http.Response('apk!', 200)),
+      );
+      final update = AppUpdate(
+        build: 5,
+        downloadUrl: 'https://s3.test/apk',
+        forced: forced,
+        notes: 'Faster dashboard',
+        sizeBytes: 4,
+      );
+      await tester.pumpWidget(
+        MaterialApp(
+          home: AppUpdateDialog(update: update, service: service),
+        ),
+      );
+      return platform;
+    }
+
+    testWidgets('an optional update can be postponed', (tester) async {
+      await show(tester);
+      expect(find.text('Update available'), findsOneWidget);
+      expect(find.text('What’s new: Faster dashboard'), findsOneWidget);
+      expect(find.text('Later'), findsOneWidget);
+    });
+
+    testWidgets('a forced update has no Later button', (tester) async {
+      await show(tester, forced: true);
+      expect(find.text('Update required'), findsOneWidget);
+      expect(find.text('Later'), findsNothing);
+    });
+
+    testWidgets('asks for the install permission before downloading', (
+      tester,
+    ) async {
+      final platform = await show(tester, canInstall: false);
+      await tester.tap(find.text('Update'));
+      await tester.pumpAndSettle();
+      expect(
+        find.textContaining('allow inSOL8 to install apps'),
+        findsOneWidget,
+      );
+      await tester.tap(find.text('Open settings'));
+      expect(platform.settingsOpened, 1);
+      expect(platform.installed, isEmpty);
+    });
+
+    testWidgets('downloads and opens the installer', (tester) async {
+      final platform = await show(tester);
+      await tester.runAsync(() async {
+        await tester.tap(find.text('Update'));
+        for (var i = 0; i < 50 && platform.installed.isEmpty; i++) {
+          await Future<void>.delayed(const Duration(milliseconds: 20));
+        }
+      });
+      await tester.pumpAndSettle();
+      expect(platform.installed.single, endsWith('insol8-5.apk'));
+      expect(find.text('Install'), findsOneWidget);
+    });
+  });
+
+  group('Settings > Check for updates', () {
+    Future<void> openSettings(
+      WidgetTester tester, {
+      required bool isAndroid,
+      int installedBuild = 3,
+      int latestBuild = 3,
+    }) async {
+      tester.view.physicalSize = const Size(1080, 4000);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+      final service = AppUpdateService(
+        api: _api(_latest(build: latestBuild)),
+        platform: _FakePlatform(dir: dir, build: installedBuild),
+        isAndroid: isAndroid,
+      );
+      await tester.pumpWidget(
+        MaterialApp(
+          home: SettingsPage(
+            authRepository: UnconfiguredAuthRepository(),
+            branchRepository: const UnusedBranchRepository(),
+            deviceRepository: const UnusedDeviceRepository(),
+            subscriptionRepository: const FakeSubscriptionRepository(),
+            appUpdateService: service,
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+    }
+
+    testWidgets('is hidden off Android', (tester) async {
+      await openSettings(tester, isAndroid: false);
+      expect(find.text('Check for updates'), findsNothing);
+    });
+
+    testWidgets('shows the installed build and says when it is current', (
+      tester,
+    ) async {
+      await openSettings(tester, isAndroid: true);
+      expect(find.text('Build 3'), findsOneWidget);
+      await tester.tap(find.text('Check for updates'));
+      await tester.pumpAndSettle();
+      expect(
+        find.text('You’re on the latest version (build 3).'),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('opens the update dialog when a newer build exists', (
+      tester,
+    ) async {
+      await openSettings(tester, isAndroid: true, latestBuild: 5);
+      await tester.tap(find.text('Check for updates'));
+      await tester.pumpAndSettle();
+      expect(find.text('Update available'), findsOneWidget);
+    });
+  });
+}

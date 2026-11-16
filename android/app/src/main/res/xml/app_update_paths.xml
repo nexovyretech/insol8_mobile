@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Files the in-app updater may hand to the package installer (MainActivity.updateDir). -->
+<paths>
+    <cache-path name="updates" path="updates/" />
+</paths>
