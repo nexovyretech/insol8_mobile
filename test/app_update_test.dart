@@ -5,11 +5,15 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
+import 'package:insol8_mobile/constants/release_notes.dart';
+import 'package:insol8_mobile/pages/settings/settings_content_page.dart';
 import 'package:insol8_mobile/pages/settings/settings_page.dart';
 import 'package:insol8_mobile/services/api_client.dart';
 import 'package:insol8_mobile/services/app_update_service.dart';
 import 'package:insol8_mobile/services/auth_repository.dart';
 import 'package:insol8_mobile/widgets/app_update_listener.dart';
+import 'package:insol8_mobile/widgets/whats_new_sheet.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 
 import 'support/fake_repositories.dart';
 
@@ -257,27 +261,63 @@ void main() {
     });
   });
 
-  group('Settings > Check for updates', () {
-    Future<void> openSettings(
+  testWidgets('Settings no longer has its own Check for updates row', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(1080, 4000);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    await tester.pumpWidget(
+      MaterialApp(
+        home: SettingsPage(
+          authRepository: UnconfiguredAuthRepository(),
+          branchRepository: const UnusedBranchRepository(),
+          deviceRepository: const UnusedDeviceRepository(),
+          subscriptionRepository: const FakeSubscriptionRepository(),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('About Us'), findsOneWidget);
+    expect(find.text('Check for updates'), findsNothing);
+  });
+
+  group('About Us', () {
+    setUp(
+      () => PackageInfo.setMockInitialValues(
+        appName: 'inSOL8',
+        packageName: 'com.insol8.mobile',
+        version: '0.6.3',
+        buildNumber: '7',
+        buildSignature: '',
+      ),
+    );
+
+    Future<void> openAboutUs(
       WidgetTester tester, {
-      required bool isAndroid,
-      int installedBuild = 3,
+      bool isAndroid = true,
       int latestBuild = 3,
+      bool offline = false,
     }) async {
       tester.view.physicalSize = const Size(1080, 4000);
       tester.view.devicePixelRatio = 1;
       addTearDown(tester.view.reset);
       final service = AppUpdateService(
-        api: _api(_latest(build: latestBuild)),
-        platform: _FakePlatform(dir: dir, build: installedBuild),
+        api: offline
+            ? ApiClient(
+                client: MockClient((_) async => throw http.ClientException('')),
+                baseUrl: 'https://api.test',
+                accessToken: () async => 'token',
+              )
+            : _api(_latest(build: latestBuild)),
+        platform: _FakePlatform(dir: dir, build: 3),
         isAndroid: isAndroid,
       );
       await tester.pumpWidget(
         MaterialApp(
-          home: SettingsPage(
+          home: SettingsContentPage(
+            type: SettingsContentType.aboutUs,
             authRepository: UnconfiguredAuthRepository(),
-            branchRepository: const UnusedBranchRepository(),
-            deviceRepository: const UnusedDeviceRepository(),
             subscriptionRepository: const FakeSubscriptionRepository(),
             appUpdateService: service,
           ),
@@ -286,32 +326,78 @@ void main() {
       await tester.pumpAndSettle();
     }
 
-    testWidgets('is hidden off Android', (tester) async {
-      await openSettings(tester, isAndroid: false);
-      expect(find.text('Check for updates'), findsNothing);
-    });
-
-    testWidgets('shows the installed build and says when it is current', (
+    testWidgets('shows the installed version and that it is current', (
       tester,
     ) async {
-      await openSettings(tester, isAndroid: true);
-      expect(find.text('Build 3'), findsOneWidget);
+      await openAboutUs(tester);
+      expect(find.text('v0.6.3 (Build 7)'), findsOneWidget);
+      expect(find.text('Up to date'), findsOneWidget);
       await tester.tap(find.text('Check for updates'));
       await tester.pumpAndSettle();
       expect(
-        find.text('You’re on the latest version (build 3).'),
+        find.text('You’re on the latest version (v0.6.3).'),
         findsOneWidget,
       );
     });
 
-    testWidgets('opens the update dialog when a newer build exists', (
+    testWidgets('says an update is available and opens it on tap', (
       tester,
     ) async {
-      await openSettings(tester, isAndroid: true, latestBuild: 5);
+      await openAboutUs(tester, latestBuild: 5);
+      expect(find.text('v0.6.0 available'), findsOneWidget);
       await tester.tap(find.text('Check for updates'));
       await tester.pumpAndSettle();
       expect(find.text('Update available'), findsOneWidget);
+      expect(find.text('Later'), findsOneWidget);
     });
+
+    testWidgets('offers a retry when the check fails', (tester) async {
+      await openAboutUs(tester, offline: true);
+      expect(find.text('Tap to try again'), findsOneWidget);
+      await tester.tap(find.text('Check for updates'));
+      await tester.pumpAndSettle();
+      expect(find.textContaining('Couldn’t check for updates'), findsOneWidget);
+    });
+
+    testWidgets('hides Check for updates where updates do not work', (
+      tester,
+    ) async {
+      await openAboutUs(tester, isAndroid: false);
+      expect(find.text('Check for updates'), findsNothing);
+      expect(find.text('v0.6.3 (Build 7)'), findsOneWidget);
+    });
+
+    testWidgets('What’s new lists versions and marks the installed one', (
+      tester,
+    ) async {
+      await openAboutUs(tester);
+      await tester.tap(find.text('What’s new'));
+      await tester.pumpAndSettle();
+      expect(find.byType(WhatsNewSheet), findsOneWidget);
+      expect(find.text('Installed'), findsOneWidget);
+      final installedCard = find.ancestor(
+        of: find.text('Installed'),
+        matching: find.byType(Row),
+      );
+      expect(
+        find.descendant(of: installedCard, matching: find.text('v0.6.3')),
+        findsOneWidget,
+      );
+    });
+  });
+
+  test('release notes are newest first, one entry per version', () {
+    final versions = releaseNotes.map((note) => note.version).toList();
+    expect(versions.toSet().length, versions.length);
+    List<int> parts(String v) => v.split('.').map(int.parse).toList();
+    for (var i = 1; i < versions.length; i++) {
+      final newer = parts(versions[i - 1]);
+      final older = parts(versions[i]);
+      final compare = [for (var j = 0; j < 3; j++) newer[j].compareTo(older[j])]
+          .firstWhere((c) => c != 0, orElse: () => 0);
+      expect(compare, 1, reason: '${versions[i - 1]} before ${versions[i]}');
+    }
+    expect(releaseNotes.every((note) => note.changes.isNotEmpty), isTrue);
   });
 
   group('AppUpdateListener (whole app, before sign-in)', () {

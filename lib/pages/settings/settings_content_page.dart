@@ -1,15 +1,22 @@
 import 'package:flutter/material.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 
 import 'package:insol8_mobile/models/legal_document.dart';
 import 'package:insol8_mobile/constants/legal_documents.dart';
 import 'package:insol8_mobile/pages/home/dashboard_bottom_navigation.dart';
 import 'package:insol8_mobile/pages/legal/legal_document_page.dart';
 import 'package:insol8_mobile/routes/app_routes.dart';
+import 'package:insol8_mobile/services/app_update_service.dart';
 import 'package:insol8_mobile/services/auth_repository.dart';
 import 'package:insol8_mobile/services/subscription_repository.dart';
 import 'package:insol8_mobile/theme/app_colors.dart';
 import 'package:insol8_mobile/theme/app_spacing.dart';
 import 'package:insol8_mobile/widgets/app_page_header.dart';
+import 'package:insol8_mobile/widgets/app_update_listener.dart';
+import 'package:insol8_mobile/widgets/whats_new_sheet.dart';
+
+/// About Us > Check for updates: what the row shows on the right.
+enum _UpdateStatus { checking, upToDate, available, failed }
 
 enum SettingsContentType {
   billing,
@@ -27,11 +34,16 @@ class SettingsContentPage extends StatefulWidget {
     required this.type,
     required this.authRepository,
     required this.subscriptionRepository,
+    this.appUpdateService,
   });
 
   final SettingsContentType type;
   final AuthRepository authRepository;
   final SubscriptionRepository subscriptionRepository;
+
+  /// About Us > Check for updates; a real [AppUpdateService] when null. The
+  /// row is only shown where in-app updates work (Android release builds).
+  final AppUpdateService? appUpdateService;
 
   @override
   State<SettingsContentPage> createState() => _SettingsContentPageState();
@@ -58,11 +70,83 @@ class _SettingsContentPageState extends State<SettingsContentPage> {
     'Marketing news and updates': true,
   };
 
+  late final AppUpdateService _updates =
+      widget.appUpdateService ?? AppUpdateService();
+  PackageInfo? _appInfo;
+  _UpdateStatus _updateStatus = _UpdateStatus.checking;
+  AppUpdate? _availableUpdate;
+
   @override
   void initState() {
     super.initState();
     _loadAccount();
+    if (widget.type == SettingsContentType.aboutUs) {
+      _loadAppInfo();
+      if (_updates.isSupported) _checkForUpdates(quiet: true);
+    }
   }
+
+  Future<void> _loadAppInfo() async {
+    try {
+      final info = await PackageInfo.fromPlatform();
+      if (mounted) setState(() => _appInfo = info);
+    } on Exception {
+      // The row shows a dash instead.
+    }
+  }
+
+  /// Checks the backend for a newer build. [quiet] (when the page opens) only
+  /// updates the row; a tap also opens the update or says the result.
+  Future<void> _checkForUpdates({bool quiet = false}) async {
+    if (!quiet && _updateStatus == _UpdateStatus.checking) return;
+    setState(() => _updateStatus = _UpdateStatus.checking);
+    try {
+      final update = await _updates.check();
+      if (!mounted) return;
+      setState(() {
+        _availableUpdate = update;
+        _updateStatus = update == null
+            ? _UpdateStatus.upToDate
+            : _UpdateStatus.available;
+      });
+      if (quiet) return;
+      if (update == null) {
+        final version = _appInfo?.version;
+        _message(
+          version == null
+              ? 'You’re on the latest version.'
+              : 'You’re on the latest version (v$version).',
+        );
+      } else {
+        await showAppUpdateDialog(context, update, _updates);
+      }
+    } on Exception {
+      if (!mounted) return;
+      setState(() => _updateStatus = _UpdateStatus.failed);
+      if (!quiet) {
+        _message('Couldn’t check for updates. Check your internet connection.');
+      }
+    }
+  }
+
+  /// "v0.6.3 (Build 7)", or a dash before it loads.
+  String get _versionLabel {
+    final info = _appInfo;
+    if (info == null) return '—';
+    return info.buildNumber.isEmpty
+        ? 'v${info.version}'
+        : 'v${info.version} (Build ${info.buildNumber})';
+  }
+
+  String get _updateStatusLabel => switch (_updateStatus) {
+    _UpdateStatus.checking => 'Checking…',
+    _UpdateStatus.upToDate => 'Up to date',
+    _UpdateStatus.available =>
+      _availableUpdate?.displayVersion == null
+          ? 'Update available'
+          : '${_availableUpdate!.displayVersion} available',
+    _UpdateStatus.failed => 'Tap to try again',
+  };
 
   @override
   void dispose() {
@@ -649,14 +733,26 @@ class _SettingsContentPageState extends State<SettingsContentPage> {
     crossAxisAlignment: CrossAxisAlignment.start,
     children: [
       const _SettingsSection('Application Info'),
-      const _SettingsCard(
+      _SettingsCard(
         children: [
-          _SettingsRow('App version', 'v1.2.0 (Build 420)'),
-          _SettingsRow('Firmware compatibility', 'v2.4.1'),
+          _SettingsRow('App version', _versionLabel),
+          const _SettingsRow('Firmware compatibility', 'v2.4.1'),
+          if (_updates.isSupported)
+            _SettingsRow(
+              'Check for updates',
+              _updateStatusLabel,
+              valueColor: _updateStatus == _UpdateStatus.available
+                  ? AppColors.primary
+                  : null,
+              showChevron: true,
+              onTap: _checkForUpdates,
+            ),
           _SettingsRow(
-            'Check for updates',
-            'Up to date',
+            'What’s new',
+            _appInfo == null ? '' : 'v${_appInfo!.version}',
             showChevron: true,
+            onTap: () =>
+                showWhatsNewSheet(context, installedVersion: _appInfo?.version),
             last: true,
           ),
         ],
@@ -755,12 +851,16 @@ class _SettingsRow extends StatelessWidget {
     this.onTap,
     this.last = false,
     this.showChevron = false,
+    this.valueColor,
   });
   final String label;
   final String value;
   final VoidCallback? onTap;
   final bool last;
   final bool showChevron;
+
+  /// Highlights the value, e.g. "Update available"; grey when null.
+  final Color? valueColor;
 
   @override
   Widget build(BuildContext context) => Column(
@@ -788,9 +888,10 @@ class _SettingsRow extends StatelessWidget {
                       value,
                       textAlign: TextAlign.right,
                       overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        color: AppColors.fieldHint,
+                      style: TextStyle(
+                        color: valueColor ?? AppColors.fieldHint,
                         fontSize: 12,
+                        fontWeight: valueColor == null ? null : FontWeight.w600,
                       ),
                     ),
                   ),

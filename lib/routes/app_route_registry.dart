@@ -39,7 +39,7 @@ abstract final class AppRouteRegistry {
     required SubscriptionRepository subscriptionRepository,
     LiveTelemetrySource? liveTelemetry,
 
-    /// Settings > Check for updates; a real [AppUpdateService] when null (it
+    /// About Us > Check for updates; a real [AppUpdateService] when null (it
     /// does nothing off Android or in debug builds, including widget tests).
     AppUpdateService? appUpdateService,
   }) => {
@@ -81,7 +81,6 @@ abstract final class AppRouteRegistry {
       branchRepository: branchRepository,
       deviceRepository: deviceRepository,
       subscriptionRepository: subscriptionRepository,
-      appUpdateService: appUpdateService,
     ),
     AppRoutes.accountProfile: (_) => AccountProfilePage(
       authRepository: authRepository,
@@ -132,6 +131,7 @@ abstract final class AppRouteRegistry {
       type: SettingsContentType.aboutUs,
       authRepository: authRepository,
       subscriptionRepository: subscriptionRepository,
+      appUpdateService: appUpdateService,
     ),
     AppRoutes.deviceSearch: (_) => DeviceSearchPage(
       authRepository: authRepository,
