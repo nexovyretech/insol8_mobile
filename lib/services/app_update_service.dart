@@ -29,6 +29,13 @@ class AppUpdate {
   /// The installed build is below the backend's `minSupportedBuild`: the user
   /// must update before using the app.
   final bool forced;
+
+  /// "v0.6.1" when [version] is a version number; null for a branch name such
+  /// as "main" (a build started from the Actions tab instead of a tag).
+  String? get displayVersion {
+    final match = RegExp(r'^v?(\d+(?:\.\d+){0,3})$').firstMatch(version ?? '');
+    return match == null ? null : 'v${match.group(1)}';
+  }
 }
 
 class AppUpdateException implements Exception {
