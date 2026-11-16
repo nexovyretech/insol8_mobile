@@ -68,6 +68,18 @@ void main() {
       expect(update.notes, 'Faster dashboard');
     });
 
+    test('shows a version number but not a branch name', () {
+      AppUpdate withVersion(String version) => AppUpdate(
+        build: 5,
+        downloadUrl: 'x',
+        forced: false,
+        version: version,
+      );
+      expect(withVersion('v0.6.1').displayVersion, 'v0.6.1');
+      expect(withVersion('0.6.1').displayVersion, 'v0.6.1');
+      expect(withVersion('main').displayVersion, isNull);
+    });
+
     test('ignores the same or an older build', () {
       expect(AppUpdateService.updateFrom(_latest(), installedBuild: 5), isNull);
       expect(AppUpdateService.updateFrom(_latest(), installedBuild: 9), isNull);
@@ -187,12 +199,14 @@ void main() {
         build: 5,
         downloadUrl: 'https://s3.test/apk',
         forced: forced,
-        notes: 'Faster dashboard',
+        version: 'v0.6.1',
         sizeBytes: 4,
       );
       await tester.pumpWidget(
         MaterialApp(
-          home: AppUpdateDialog(update: update, service: service),
+          home: Scaffold(
+            body: AppUpdateDialog(update: update, service: service),
+          ),
         ),
       );
       return platform;
@@ -201,8 +215,12 @@ void main() {
     testWidgets('an optional update can be postponed', (tester) async {
       await show(tester);
       expect(find.text('Update available'), findsOneWidget);
-      expect(find.text('What’s new: Faster dashboard'), findsOneWidget);
-      expect(find.text('Later'), findsOneWidget);
+      expect(find.textContaining('v0.6.1'), findsOneWidget);
+      // Later on the left, Update on the right, on the same line.
+      final later = tester.getCenter(find.text('Later'));
+      final update = tester.getCenter(find.text('Update'));
+      expect(later.dx, lessThan(update.dx));
+      expect(later.dy, update.dy);
     });
 
     testWidgets('a forced update has no Later button', (tester) async {
@@ -217,10 +235,9 @@ void main() {
       final platform = await show(tester, canInstall: false);
       await tester.tap(find.text('Update'));
       await tester.pumpAndSettle();
-      expect(
-        find.textContaining('allow inSOL8 to install apps'),
-        findsOneWidget,
-      );
+      expect(find.text('Allow app installs'), findsOneWidget);
+      final settings = tester.getCenter(find.text('Open settings'));
+      expect(settings.dx, lessThan(tester.getCenter(find.text('Continue')).dx));
       await tester.tap(find.text('Open settings'));
       expect(platform.settingsOpened, 1);
       expect(platform.installed, isEmpty);
