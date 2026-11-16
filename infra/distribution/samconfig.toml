@@ -9,3 +9,4 @@ capabilities = "CAPABILITY_IAM CAPABILITY_NAMED_IAM"   # NAMED_IAM because the u
 confirm_changeset = true
 resolve_s3 = true
 tags = "project=insol8 component=mobile-distribution"
+parameter_overrides = "EnablePortal=true"
