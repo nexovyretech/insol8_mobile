@@ -82,13 +82,19 @@ jobs:
             echo "keyPassword=$KEY_PASSWORD"
           } > android/key.properties
 
+      # The app reads INSOL8_API_URL (lib/constants/api_config.dart). It is only passed
+      # when API_BASE_URL is set: an empty define would bake in an empty URL, while
+      # leaving it out falls back to the dev API in the code.
+      # The build number is the APK's versionCode and the S3 folder name; the in-app
+      # updater compares it with the installed build, so it must only ever go up.
       - name: Build release APK
         env:
           API_BASE_URL: ${{ vars.API_BASE_URL }}
-        run: >
-          flutter build apk --release
-          --dart-define=API_BASE_URL="$API_BASE_URL"
-          --build-number=${{ github.run_number }}
+          BUILD_NUMBER: ${{ github.run_number }}
+        run: |
+          args=(--release --build-number="$BUILD_NUMBER")
+          if [ -n "$API_BASE_URL" ]; then args+=(--dart-define=INSOL8_API_URL="$API_BASE_URL"); fi
+          flutter build apk "${args[@]}"
 
       # Kept as a workflow artifact too, so an older build can always be re-uploaded.
       - uses: actions/upload-artifact@v4

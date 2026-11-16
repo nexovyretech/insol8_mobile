@@ -18,6 +18,7 @@ import 'package:insol8_mobile/pages/settings/settings_content_page.dart';
 import 'package:insol8_mobile/pages/onboarding/onboarding_page.dart';
 import 'package:insol8_mobile/routes/app_routes.dart';
 import 'package:insol8_mobile/services/analytics_repository.dart';
+import 'package:insol8_mobile/services/app_update_service.dart';
 import 'package:insol8_mobile/services/auth_repository.dart';
 import 'package:insol8_mobile/services/branch_repository.dart';
 import 'package:insol8_mobile/services/dashboard_repository.dart';
@@ -25,6 +26,7 @@ import 'package:insol8_mobile/services/device_repository.dart';
 import 'package:insol8_mobile/services/live_telemetry.dart';
 import 'package:insol8_mobile/services/onboarding_repository.dart';
 import 'package:insol8_mobile/services/subscription_repository.dart';
+import 'package:insol8_mobile/widgets/app_update_listener.dart';
 
 /// Maps route paths to pages and passes page-specific repository dependencies.
 abstract final class AppRouteRegistry {
@@ -37,6 +39,10 @@ abstract final class AppRouteRegistry {
     required BranchRepository branchRepository,
     required SubscriptionRepository subscriptionRepository,
     LiveTelemetrySource? liveTelemetry,
+
+    /// In-app Android updates; a real [AppUpdateService] when null (it does
+    /// nothing off Android, including in widget tests).
+    AppUpdateService? appUpdateService,
   }) => {
     AppRoutes.getStarted: (_) => const GetStartedPage(),
     AppRoutes.login: (_) => LoginPage(authRepository: authRepository),
@@ -46,12 +52,16 @@ abstract final class AppRouteRegistry {
     AppRoutes.onboarding: (_) =>
         OnboardingPage(repository: onboardingRepository),
     // HomePage checks the session itself and returns to getStarted without one.
-    AppRoutes.home: (_) => HomePage(
-      authRepository: authRepository,
-      dashboardRepository: dashboardRepository,
-      deviceRepository: deviceRepository,
-      onboardingRepository: onboardingRepository,
-      subscriptionRepository: subscriptionRepository,
+    // AppUpdateListener offers newer Android builds once the user is signed in.
+    AppRoutes.home: (_) => AppUpdateListener(
+      service: appUpdateService,
+      child: HomePage(
+        authRepository: authRepository,
+        dashboardRepository: dashboardRepository,
+        deviceRepository: deviceRepository,
+        onboardingRepository: onboardingRepository,
+        subscriptionRepository: subscriptionRepository,
+      ),
     ),
     AppRoutes.devices: (_) => DevicesPage(
       authRepository: authRepository,
@@ -76,6 +86,7 @@ abstract final class AppRouteRegistry {
       branchRepository: branchRepository,
       deviceRepository: deviceRepository,
       subscriptionRepository: subscriptionRepository,
+      appUpdateService: appUpdateService,
     ),
     AppRoutes.accountProfile: (_) => AccountProfilePage(
       authRepository: authRepository,
