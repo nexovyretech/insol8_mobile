@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 import 'package:insol8_mobile/models/user_profile.dart';
 import 'package:insol8_mobile/pages/home/dashboard_bottom_navigation.dart';
 import 'package:insol8_mobile/routes/app_routes.dart';
-import 'package:insol8_mobile/services/app_update_service.dart';
 import 'package:insol8_mobile/services/auth_repository.dart';
 import 'package:insol8_mobile/services/branch_repository.dart';
 import 'package:insol8_mobile/services/device_repository.dart';
@@ -11,7 +10,6 @@ import 'package:insol8_mobile/services/subscription_repository.dart';
 import 'package:insol8_mobile/theme/app_colors.dart';
 import 'package:insol8_mobile/theme/app_spacing.dart';
 import 'package:insol8_mobile/widgets/app_page_header.dart';
-import 'package:insol8_mobile/widgets/app_update_listener.dart';
 
 class SettingsPage extends StatefulWidget {
   const SettingsPage({
@@ -20,17 +18,12 @@ class SettingsPage extends StatefulWidget {
     required this.branchRepository,
     required this.deviceRepository,
     required this.subscriptionRepository,
-    this.appUpdateService,
   });
 
   final AuthRepository authRepository;
   final BranchRepository branchRepository;
   final DeviceRepository deviceRepository;
   final SubscriptionRepository subscriptionRepository;
-
-  /// Settings > Check for updates; a real [AppUpdateService] when null. The
-  /// row is only shown on Android.
-  final AppUpdateService? appUpdateService;
 
   @override
   State<SettingsPage> createState() => _SettingsPageState();
@@ -40,52 +33,11 @@ class _SettingsPageState extends State<SettingsPage> {
   UserProfile? _profile;
   bool _organizationPlan = false;
   bool _loading = true;
-  late final AppUpdateService _updates =
-      widget.appUpdateService ?? AppUpdateService();
-  int? _installedBuild;
-  bool _checkingForUpdate = false;
 
   @override
   void initState() {
     super.initState();
     _loadProfile();
-    if (_updates.isSupported) _loadInstalledBuild();
-  }
-
-  Future<void> _loadInstalledBuild() async {
-    try {
-      final build = await _updates.installedBuild();
-      if (mounted) setState(() => _installedBuild = build);
-    } on Exception {
-      // The row still works without the build number.
-    }
-  }
-
-  Future<void> _checkForUpdate() async {
-    if (_checkingForUpdate) return;
-    setState(() => _checkingForUpdate = true);
-    _message('Checking for updates…');
-    try {
-      final update = await _updates.check();
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).hideCurrentSnackBar();
-      if (update == null) {
-        final build = _installedBuild;
-        _message(
-          build == null
-              ? 'You’re on the latest version.'
-              : 'You’re on the latest version (build $build).',
-        );
-      } else {
-        await showAppUpdateDialog(context, update, _updates);
-      }
-    } on Exception {
-      if (mounted) {
-        _message('Couldn’t check for updates. Check your connection.');
-      }
-    } finally {
-      if (mounted) setState(() => _checkingForUpdate = false);
-    }
   }
 
   Future<void> _loadProfile() async {
@@ -283,15 +235,6 @@ class _SettingsPageState extends State<SettingsPage> {
                   onTap: () =>
                       Navigator.of(context).pushNamed(AppRoutes.reportIssue),
                 ),
-                if (_updates.isSupported)
-                  _MenuRow(
-                    icon: Icons.system_update_outlined,
-                    label: 'Check for updates',
-                    detail: _installedBuild == null
-                        ? null
-                        : 'Build $_installedBuild',
-                    onTap: _checkForUpdate,
-                  ),
                 _MenuRow(
                   icon: Icons.info_outline,
                   label: 'About Us',
@@ -347,15 +290,11 @@ class _MenuRow extends StatelessWidget {
     required this.icon,
     required this.label,
     required this.onTap,
-    this.detail,
     this.last = false,
   });
   final IconData icon;
   final String label;
   final VoidCallback onTap;
-
-  /// Short grey text before the chevron, e.g. the installed build.
-  final String? detail;
   final bool last;
 
   @override
@@ -386,15 +325,6 @@ class _MenuRow extends StatelessWidget {
                         ?.copyWith(fontSize: 14, height: 1.2),
                   ),
                 ),
-                if (detail case final detail?)
-                  Padding(
-                    padding: const EdgeInsets.only(right: 4),
-                    child: Text(
-                      detail,
-                      style: Theme.of(context).textTheme.bodySmall
-                          ?.copyWith(fontSize: 12, color: AppColors.fieldHint),
-                    ),
-                  ),
                 const Icon(
                   Icons.chevron_right,
                   size: 18,
