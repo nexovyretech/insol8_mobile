@@ -109,7 +109,8 @@ class AppUpdateService {
   Future<AppUpdate?> check() async {
     if (!_isAndroid) return null;
     final installed = await _platform.installedBuild();
-    final data = await _api.get('/app/updates/latest');
+    // Public route: the check also runs before sign-in.
+    final data = await _api.get('/app/updates/latest', authenticated: false);
     return updateFrom(data, installedBuild: installed);
   }
 
