@@ -3,14 +3,21 @@ import 'package:flutter/material.dart';
 import 'package:insol8_mobile/services/app_update_service.dart';
 import 'package:insol8_mobile/theme/app_colors.dart';
 
-/// Checks for a newer Android build when [child] first appears and whenever
-/// the app returns to the foreground (at most every [interval]), and shows
-/// [AppUpdateDialog] when one exists. Does nothing off Android.
+/// Checks for a newer Android build when the app starts and whenever it
+/// returns to the foreground, and shows [AppUpdateDialog] when one exists.
+/// Does nothing off Android or in debug builds.
+///
+/// Sits above every route (MaterialApp.builder), so it also runs on Get
+/// Started, login and sign-up: a user who never signs up still gets updates.
+/// Optional updates are offered at most every [interval]; a required one is
+/// shown again whenever it is closed (for example when the screen behind it
+/// changes) and on every return to the app, until the user installs it.
 class AppUpdateListener extends StatefulWidget {
   const AppUpdateListener({
     super.key,
     required this.child,
     this.service,
+    this.navigatorKey,
     this.interval = const Duration(hours: 6),
   });
 
@@ -18,6 +25,10 @@ class AppUpdateListener extends StatefulWidget {
 
   /// Defaults to a real [AppUpdateService]; a fake in tests.
   final AppUpdateService? service;
+
+  /// The app's navigator. Required when this widget sits above it (in
+  /// MaterialApp.builder), since dialogs need a context below a Navigator.
+  final GlobalKey<NavigatorState>? navigatorKey;
   final Duration interval;
 
   @override
@@ -28,9 +39,11 @@ class _AppUpdateListenerState extends State<AppUpdateListener>
     with WidgetsBindingObserver {
   late final AppUpdateService _service = widget.service ?? AppUpdateService();
 
-  // Shared across listener instances so returning to home does not re-check.
-  static DateTime? _lastCheck;
+  DateTime? _lastCheck;
   bool _dialogOpen = false;
+
+  /// A required update found earlier; checked again on every resume.
+  bool _requiredPending = false;
 
   @override
   void initState() {
@@ -50,10 +63,16 @@ class _AppUpdateListenerState extends State<AppUpdateListener>
     if (state == AppLifecycleState.resumed) _check();
   }
 
+  BuildContext? get _dialogContext => widget.navigatorKey == null
+      ? context
+      : widget.navigatorKey!.currentContext;
+
   Future<void> _check() async {
     final last = _lastCheck;
-    if (_dialogOpen ||
-        (last != null && DateTime.now().difference(last) < widget.interval)) {
+    if (_dialogOpen) return;
+    if (!_requiredPending &&
+        last != null &&
+        DateTime.now().difference(last) < widget.interval) {
       return;
     }
     _lastCheck = DateTime.now();
@@ -65,11 +84,28 @@ class _AppUpdateListenerState extends State<AppUpdateListener>
       _lastCheck = null;
       return;
     }
+    _requiredPending = update?.forced ?? false;
     if (update == null || !mounted) return;
+    await _show(update);
+  }
 
+  Future<void> _show(AppUpdate update) async {
     _dialogOpen = true;
-    await showAppUpdateDialog(context, update, _service);
-    _dialogOpen = false;
+    try {
+      // A required update has no "Later", but the dialog can still be closed
+      // underneath it (a screen replacing the route), so show it again.
+      for (var attempt = 0; mounted && attempt < 50; attempt++) {
+        final dialogContext = _dialogContext;
+        if (dialogContext != null && dialogContext.mounted) {
+          await showAppUpdateDialog(dialogContext, update, _service);
+          if (!update.forced) return;
+        }
+        // Let the navigation that closed it (or the first frame) finish.
+        await Future<void>.delayed(const Duration(milliseconds: 300));
+      }
+    } finally {
+      _dialogOpen = false;
+    }
   }
 
   @override

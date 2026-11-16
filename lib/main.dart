@@ -13,6 +13,7 @@ import 'package:insol8_mobile/services/api_branch_repository.dart';
 import 'package:insol8_mobile/services/api_device_repository.dart';
 import 'package:insol8_mobile/services/api_insights_repository.dart';
 import 'package:insol8_mobile/services/api_onboarding_repository.dart';
+import 'package:insol8_mobile/services/app_update_service.dart';
 import 'package:insol8_mobile/services/auth_repository.dart';
 import 'package:insol8_mobile/services/branch_repository.dart';
 import 'package:insol8_mobile/services/cognito_auth_repository.dart';
@@ -22,6 +23,7 @@ import 'package:insol8_mobile/services/live_telemetry.dart';
 import 'package:insol8_mobile/services/onboarding_repository.dart';
 import 'package:insol8_mobile/services/subscription_repository.dart';
 import 'package:insol8_mobile/theme/app_theme.dart';
+import 'package:insol8_mobile/widgets/app_update_listener.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -50,6 +52,7 @@ Future<void> main() async {
         branchRepository: ApiBranchRepository(),
         subscriptionRepository: ApiSubscriptionRepository(),
         liveTelemetry: WebSocketLiveTelemetry(),
+        appUpdateService: AppUpdateService(),
       ),
     ),
   );
@@ -81,6 +84,7 @@ class Insol8App extends StatelessWidget {
     required this.branchRepository,
     required this.subscriptionRepository,
     this.liveTelemetry,
+    this.appUpdateService,
   });
 
   final AuthRepository authRepository;
@@ -100,12 +104,25 @@ class Insol8App extends StatelessWidget {
   /// Live dryer readings on the device page; null in widget tests.
   final LiveTelemetrySource? liveTelemetry;
 
+  /// In-app Android updates, checked on every screen including before
+  /// sign-in. Null in widget tests (it does nothing off Android anyway).
+  final AppUpdateService? appUpdateService;
+
+  /// Lets [AppUpdateListener], which sits above the navigator, show dialogs.
+  static final _navigatorKey = GlobalKey<NavigatorState>();
+
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
       title: 'inSOL8',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.light,
+      navigatorKey: _navigatorKey,
+      builder: (context, child) => AppUpdateListener(
+        service: appUpdateService,
+        navigatorKey: _navigatorKey,
+        child: child ?? const SizedBox.shrink(),
+      ),
       initialRoute: initialRoute,
       routes: AppRouteRegistry.build(
         authRepository,
@@ -116,6 +133,7 @@ class Insol8App extends StatelessWidget {
         branchRepository: branchRepository,
         subscriptionRepository: subscriptionRepository,
         liveTelemetry: liveTelemetry,
+        appUpdateService: appUpdateService,
       ),
     );
   }

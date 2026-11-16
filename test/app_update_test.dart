@@ -296,4 +296,84 @@ void main() {
       expect(find.text('Update available'), findsOneWidget);
     });
   });
+
+  group('AppUpdateListener (whole app, before sign-in)', () {
+    Future<List<http.BaseRequest>> pumpApp(
+      WidgetTester tester, {
+      required int minSupported,
+      GlobalKey<NavigatorState>? navigatorKey,
+    }) async {
+      final requests = <http.BaseRequest>[];
+      final service = AppUpdateService(
+        api: ApiClient(
+          client: MockClient((request) async {
+            requests.add(request);
+            return http.Response(
+              jsonEncode({
+                'success': true,
+                'data': _latest(minSupported: minSupported),
+              }),
+              200,
+            );
+          }),
+          baseUrl: 'https://api.test',
+          accessToken: () async => fail('the update check must not sign in'),
+        ),
+        platform: _FakePlatform(dir: dir, build: 3),
+        isAndroid: true,
+      );
+      final key = navigatorKey ?? GlobalKey<NavigatorState>();
+      await tester.pumpWidget(
+        MaterialApp(
+          navigatorKey: key,
+          builder: (context, child) => AppUpdateListener(
+            service: service,
+            navigatorKey: key,
+            child: child!,
+          ),
+          home: const Scaffold(body: Text('Get started')),
+        ),
+      );
+      await tester.pumpAndSettle();
+      return requests;
+    }
+
+    testWidgets(
+      'shows a required update on the sign-in screens without a token',
+      (tester) async {
+        final requests = await pumpApp(tester, minSupported: 5);
+        expect(find.text('Get started'), findsOneWidget);
+        expect(find.text('Update required'), findsOneWidget);
+        expect(find.text('Later'), findsNothing);
+        expect(requests.single.url.path, '/app/updates/latest');
+        expect(requests.single.headers.containsKey('authorization'), isFalse);
+      },
+    );
+
+    testWidgets(
+      'shows a required update again when a screen change closes it',
+      (tester) async {
+        final key = GlobalKey<NavigatorState>();
+        await pumpApp(tester, minSupported: 5, navigatorKey: key);
+        // A page replacing the top route (e.g. a redirect to login) removes the dialog.
+        key.currentState!.pushReplacement(
+          MaterialPageRoute<void>(builder: (_) => const Text('Login')),
+        );
+        await tester.pumpAndSettle();
+        await tester.pump(const Duration(milliseconds: 400));
+        await tester.pumpAndSettle();
+        expect(find.text('Login'), findsOneWidget);
+        expect(find.text('Update required'), findsOneWidget);
+      },
+    );
+
+    testWidgets('an optional update stays closed after Later', (tester) async {
+      await pumpApp(tester, minSupported: 0);
+      expect(find.text('Update available'), findsOneWidget);
+      await tester.tap(find.text('Later'));
+      await tester.pumpAndSettle();
+      await tester.pump(const Duration(seconds: 1));
+      expect(find.text('Update available'), findsNothing);
+    });
+  });
 }
