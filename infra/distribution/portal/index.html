@@ -19,12 +19,15 @@
     button.link { background:none; color:var(--muted); text-decoration:underline; padding:0; }
     .err { color:#c0392b; }
     footer { margin-top:24px; }
+    /* The button rule above sets display, which would otherwise override the hidden attribute. */
+    [hidden] { display:none !important; }
   </style>
 </head>
 <body>
 <main>
   <h1>InSOL8 beta builds</h1>
   <p class="sub" id="status">Checking sign-in...</p>
+  <p id="retry" hidden><button id="retry-btn">Try again</button></p>
   <div id="builds"></div>
   <footer><button class="link" id="signout" hidden>Sign out</button></footer>
 </main>
@@ -36,7 +39,18 @@
   const statusEl = document.getElementById('status');
   const listEl = document.getElementById('builds');
   const signOutBtn = document.getElementById('signout');
+  const retryEl = document.getElementById('retry');
   const redirectUri = location.origin + '/';
+
+  // fetch() rejects with a bare "Failed to fetch" when the connection drops
+  // (common on mobile data); say what happened instead.
+  async function request(url, options) {
+    try {
+      return await fetch(url, options);
+    } catch {
+      throw Object.assign(new Error('Couldn’t reach the server. Check your internet connection and tap Try again.'), { retry: true });
+    }
+  }
 
   const store = {
     get: (k) => { try { return sessionStorage.getItem(k); } catch { return null; } },
@@ -75,12 +89,12 @@
       redirect_uri: redirectUri,
       code_verifier: store.get('pkce_verifier') ?? '',
     });
-    const res = await fetch(`${cfg.cognitoDomain}/oauth2/token`, {
+    const res = await request(`${cfg.cognitoDomain}/oauth2/token`, {
       method: 'POST',
       headers: { 'content-type': 'application/x-www-form-urlencoded' },
       body,
     });
-    if (!res.ok) throw new Error('Sign-in failed. Please try again.');
+    if (!res.ok) throw Object.assign(new Error('Sign-in failed. Please try again.'), { retry: true });
     const tokens = await res.json();
     store.set('id_token', tokens.id_token);
     store.set('expires_at', String(Date.now() + (tokens.expires_in - 30) * 1000));
@@ -139,12 +153,12 @@
 
   async function loadBuilds() {
     statusEl.textContent = 'Loading builds...';
-    const res = await fetch(`${cfg.apiUrl}/builds`, { headers: { authorization: `Bearer ${store.get('id_token')}` } });
+    const res = await request(`${cfg.apiUrl}/builds`, { headers: { authorization: `Bearer ${store.get('id_token')}` } });
     if (res.status === 401 || res.status === 403) {
       store.del('id_token');
       return startLogin();
     }
-    if (!res.ok) throw new Error('Could not load builds. Try again later.');
+    if (!res.ok) throw Object.assign(new Error('Could not load builds. Try again later.'), { retry: true });
     signOutBtn.hidden = false;
     render(await res.json());
   }
@@ -162,10 +176,14 @@
     } catch (err) {
       statusEl.textContent = err.message;
       statusEl.classList.add('err');
+      retryEl.hidden = !err.retry;
     }
   }
 
   signOutBtn.addEventListener('click', signOut);
+  // Reload without the used sign-in code: signed in -> loads the builds again;
+  // not signed in -> back through sign-in (usually instant, the session is remembered).
+  document.getElementById('retry-btn').addEventListener('click', () => location.assign(redirectUri));
   main();
 })();
 </script>
