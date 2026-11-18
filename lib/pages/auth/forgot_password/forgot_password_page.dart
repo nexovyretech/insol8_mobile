@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 
 import 'package:insol8_mobile/pages/auth/forgot_password/forgot_password_view.dart';
 import 'package:insol8_mobile/services/auth_repository.dart';
+import 'package:insol8_mobile/utils/password_rules.dart';
+import 'package:insol8_mobile/utils/phone_number.dart';
 
 class ForgotPasswordPage extends StatefulWidget {
   const ForgotPasswordPage({super.key, required this.authRepository});
@@ -69,7 +71,10 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
     if (_isEmail) {
       return RegExp(r'^[^\s@]+@[^\s@]+\.[^\s@]+$').hasMatch(value);
     }
-    return value.replaceAll(RegExp(r'\D'), '').length == 10;
+    final digits = value.replaceAll(RegExp(r'\D'), '');
+    // A reset code texted to Smart/TNT would never arrive (see the field's
+    // notice), so the button stays off for those numbers.
+    return digits.length == 10 && !isSmartNetworkNumber('+63$digits');
   }
 
   String get _identifierForAuth {
@@ -89,36 +94,16 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
       _passwordController.text == _confirmPasswordController.text &&
       _passwordPolicyError == null;
 
-  /// Mirrors the Cognito pool policy so most mistakes are caught before
-  /// the code is spent.
-  String? get _passwordPolicyError {
-    final value = _passwordController.text;
-    if (value.length < 8) {
-      return 'Use at least 8 characters for your new password.';
-    }
-    if (!RegExp(r'[A-Z]').hasMatch(value) ||
-        !RegExp(r'[a-z]').hasMatch(value) ||
-        !RegExp(r'\d').hasMatch(value)) {
-      return 'Include an uppercase letter, a lowercase letter, and a number.';
-    }
-    // Cognito rejects these with a generic error, so explain it up front.
-    if (value.trim() != value) {
-      return 'Your password can’t start or end with a space.';
-    }
-    return null;
-  }
+  /// The same rules as the Cognito pool policy (see password_rules.dart),
+  /// so most mistakes are caught before the code is spent.
+  String? get _passwordPolicyError => passwordProblem(_passwordController.text);
 
-  /// Live feedback under the fields, shown once the user starts typing.
+  /// The checklist covers the rules and the match; this is only for spaces
+  /// at the ends, which have no checklist line.
   String? get _newPasswordError {
     final password = _passwordController.text;
-    final confirm = _confirmPasswordController.text;
-    if (password.isNotEmpty && _passwordPolicyError != null) {
-      return _passwordPolicyError;
-    }
-    if (confirm.isNotEmpty && confirm != password) {
-      return 'Passwords do not match.';
-    }
-    return null;
+    if (password.isEmpty || !meetsPasswordRules(password)) return null;
+    return _passwordPolicyError;
   }
 
   Future<void> _sendCode() async {
@@ -153,25 +138,28 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
     }
   }
 
-  Future<void> _resendCode() async {
+  Future<bool> _resendCode() async {
     try {
       await widget.authRepository.resendPasswordResetCode(
         identifier: _identifierForAuth,
       );
-      if (!mounted) return;
+      if (!mounted) return true;
       _showMessage('If an account uses that email, we’ve sent it a new code.');
+      return true;
     } on AuthFailure catch (error) {
-      if (!mounted) return;
-      _showMessage(error.message);
+      if (mounted) _showMessage(error.message);
     } on AuthNotConfiguredException {
-      if (!mounted) return;
-      _showMessage(
-        'Preview only: resend will work when the backend is connected.',
-      );
+      if (mounted) {
+        _showMessage(
+          'Preview only: resend will work when the backend is connected.',
+        );
+      }
     } catch (_) {
-      if (!mounted) return;
-      _showMessage('We couldn’t resend the code. Please try again.');
+      if (mounted) {
+        _showMessage('We couldn’t resend the code. Please try again.');
+      }
     }
+    return false;
   }
 
   String get _code =>

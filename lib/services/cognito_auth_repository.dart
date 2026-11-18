@@ -8,6 +8,7 @@ import 'package:insol8_mobile/models/sign_up_data.dart';
 import 'package:insol8_mobile/models/user_profile.dart';
 import 'package:insol8_mobile/services/api_client.dart';
 import 'package:insol8_mobile/services/auth_repository.dart';
+import 'package:insol8_mobile/utils/phone_number.dart';
 
 /// Authentication backed by the InSOL8 Cognito user pool (via Amplify) and the
 /// InSOL8 API for app profiles stored in Neon.
@@ -94,10 +95,15 @@ class CognitoAuthRepository implements AuthRepository {
   /// Reads the ID token claims rather than calling fetchUserAttributes(),
   /// because tokens from Google (hosted UI) sign-in only carry the
   /// openid/email/profile scopes, and Cognito's GetUser API rejects them.
+  ///
+  /// A Google sign-up has no account email yet: its Gmail is the separate
+  /// Google email (preferred_username), which the API reads from Cognito.
   Future<UserProfile> _createProfileFromAccount() async {
     final session = await Amplify.Auth.fetchAuthSession() as CognitoAuthSession;
     final idToken = session.userPoolTokensResult.value.idToken;
     final email = idToken.email;
+    final googleEmail =
+        idToken.claims.customClaims['preferred_username'] as String?;
     // The API only accepts a mobile number Cognito has verified.
     final mobileNumber = idToken.phoneNumberVerified == true
         ? idToken.phoneNumber
@@ -109,7 +115,7 @@ class CognitoAuthRepository implements AuthRepository {
     var lastName =
         idToken.familyName ??
         (fullName.length > 1 ? fullName.skip(1).join(' ') : null);
-    firstName ??= email?.split('@').first ?? 'inSOL8';
+    firstName ??= (email ?? googleEmail)?.split('@').first ?? 'inSOL8';
     lastName ??= 'User';
     // The API caps names at 120 characters; a long Google name must not
     // block sign-in.
@@ -162,23 +168,23 @@ class CognitoAuthRepository implements AuthRepository {
   }
 
   @override
-  Future<void> requestEmailChange(String email) async {
-    // Google accounts get their email from Google on every sign-in, and their
-    // tokens lack the scope Cognito needs to update attributes.
+  Future<bool> isGoogleAccount() async {
     final session =
         await _guard(Amplify.Auth.fetchAuthSession) as CognitoAuthSession;
+    // Google sign-ups get Cognito usernames like "google_1234…". An email or
+    // mobile account keeps its own username even after Google is connected.
     final idToken = session.userPoolTokensResult.value.idToken;
-    if (idToken.claims.customClaims['identities'] != null) {
-      throw const AuthFailure(
-        'This email is managed by your Google account and can’t be changed here.',
-      );
-    }
-    await _guard(
-      () => Amplify.Auth.updateUserAttribute(
-        userAttributeKey: AuthUserAttributeKey.email,
-        value: email.trim().toLowerCase(),
-      ),
-    );
+    final username = idToken.claims.customClaims['cognito:username'] as String?;
+    return username?.toLowerCase().startsWith('google_') ?? false;
+  }
+
+  /// Any account can add or change its email, Google sign-ups included: the
+  /// Gmail is kept apart as the Google email and never overwrites it.
+  @override
+  Future<void> requestEmailChange(String email) async {
+    final normalized = email.trim().toLowerCase();
+    await _checkContact({'email': normalized});
+    await _updateAttribute(AuthUserAttributeKey.email, normalized);
   }
 
   @override
@@ -198,6 +204,184 @@ class CognitoAuthRepository implements AuthRepository {
       );
     } on ApiException catch (error) {
       throw _apiFailure(error);
+    }
+  }
+
+  @override
+  Future<void> requestMobileNumberChange(String mobileNumber) async {
+    final normalized =
+        normalizePhilippineMobile(mobileNumber) ??
+        (throw const AuthFailure(
+          'Enter a Philippine mobile number that starts with 9, like 917 123 4567.',
+        ));
+    // Checked here too so the user never waits for a text that can't arrive.
+    if (isSmartNetworkNumber(normalized)) {
+      throw const AuthFailure(smartNetworkUnsupportedMessage);
+    }
+    await _checkContact({'mobileNumber': normalized});
+    // Texted by the backend's Custom SMS sender.
+    await _updateAttribute(AuthUserAttributeKey.phoneNumber, normalized);
+  }
+
+  @override
+  Future<UserProfile> confirmMobileNumberChange({
+    required String mobileNumber,
+    required String code,
+  }) async {
+    final normalized = normalizePhilippineMobile(mobileNumber)!;
+    await _guard(
+      () => Amplify.Auth.confirmUserAttribute(
+        userAttributeKey: AuthUserAttributeKey.phoneNumber,
+        confirmationCode: code.trim(),
+      ),
+    );
+    try {
+      return UserProfile.fromJson(
+        await _api.patch('/me', {'mobileNumber': normalized}),
+      );
+    } on ApiException catch (error) {
+      throw _apiFailure(error);
+    }
+  }
+
+  @override
+  Future<Uri> startGoogleLink() async {
+    try {
+      final data = await _api.post('/me/google-link', const {});
+      return Uri.parse(data['authorizationUrl'] as String);
+    } on ApiException catch (error) {
+      throw _apiFailure(error);
+    }
+  }
+
+  @override
+  Future<void> sendPasswordCreationCode({required bool toEmail}) => _guard(
+    () => Amplify.Auth.sendUserAttributeVerificationCode(
+      userAttributeKey: toEmail
+          ? AuthUserAttributeKey.email
+          : AuthUserAttributeKey.phoneNumber,
+    ),
+  );
+
+  @override
+  Future<void> createPassword({
+    required bool toEmail,
+    required String code,
+    required String password,
+  }) async {
+    // Proves the user still controls the account's email or mobile number.
+    await _guard(
+      () => Amplify.Auth.confirmUserAttribute(
+        userAttributeKey: toEmail
+            ? AuthUserAttributeKey.email
+            : AuthUserAttributeKey.phoneNumber,
+        confirmationCode: code.trim(),
+      ),
+    );
+    // The account is about to be replaced, so the current (Google) sign-in
+    // has to end. A Google sign-in's sign-out briefly opens the browser; it
+    // runs before anything changes, so cancelling it leaves the account as
+    // it was and the user signed in.
+    final session =
+        await _guard(Amplify.Auth.fetchAuthSession) as CognitoAuthSession;
+    final accessToken = session.userPoolTokensResult.value.accessToken.raw;
+    final signOut = await Amplify.Auth.signOut();
+    if (signOut is CognitoFailedSignOut) {
+      throw const AuthFailure(
+        'Your password wasn’t created because signing out was cancelled. '
+        'Please try again.',
+      );
+    }
+    // The access token stays valid for the API until it expires.
+    final String signInName;
+    try {
+      final data = await ApiClient(
+        baseUrl: _api.baseUrl,
+        accessToken: () async => accessToken,
+      ).post('/me/password-account', {'password': password});
+      signInName = data['signInName'] as String;
+    } on ApiException catch (error) {
+      safePrint('Creating a password failed: ${error.code}');
+      throw AuthFailure(_apiFailure(error).message, signedOut: true);
+    }
+    try {
+      await Amplify.Auth.signIn(username: signInName, password: password);
+    } on AuthException catch (error) {
+      safePrint('Sign-in after creating a password failed: ${error.message}');
+      throw const AuthFailure(
+        'Please sign in with your new password.',
+        signedOut: true,
+      );
+    }
+  }
+
+  /// Cognito has no "check password" call, so this changes the password to
+  /// itself: Cognito checks the current password first and rejects a wrong
+  /// one; a right one leaves everything as it was.
+  @override
+  Future<void> verifyCurrentPassword(String password) async {
+    try {
+      await Amplify.Auth.updatePassword(
+        oldPassword: password,
+        newPassword: password,
+      );
+    } on NotAuthorizedServiceException {
+      throw const AuthFailure('Your current password is incorrect.');
+    } on InvalidPasswordException {
+      // Correct, but older than today's password rules: still the right one.
+      return;
+    } on AuthException catch (error) {
+      safePrint('Auth error: ${error.runtimeType}: ${error.message}');
+      throw AuthFailure(_messageFor(error));
+    }
+  }
+
+  @override
+  Future<void> changePassword({
+    required String currentPassword,
+    required String newPassword,
+  }) async {
+    try {
+      await Amplify.Auth.updatePassword(
+        oldPassword: currentPassword,
+        newPassword: newPassword,
+      );
+    } on NotAuthorizedServiceException {
+      throw const AuthFailure('Your current password is incorrect.');
+    } on AuthException catch (error) {
+      safePrint('Auth error: ${error.runtimeType}: ${error.message}');
+      throw AuthFailure(_messageFor(error));
+    }
+  }
+
+  /// Asks the API whether another account already uses a new email or
+  /// mobile number, and whether the number can receive texts.
+  Future<void> _checkContact(Map<String, String> contact) async {
+    try {
+      await _api.post('/me/contact-check', contact);
+    } on ApiException catch (error) {
+      throw _apiFailure(error);
+    }
+  }
+
+  /// Cognito sends a code to the new value and keeps the old one until the
+  /// code is confirmed.
+  Future<void> _updateAttribute(AuthUserAttributeKey key, String value) async {
+    try {
+      await Amplify.Auth.updateUserAttribute(
+        userAttributeKey: key,
+        value: value,
+      );
+    } on NotAuthorizedServiceException catch (error) {
+      // Google sign-ins from before the app asked for the
+      // aws.cognito.signin.user.admin scope can't update attributes.
+      safePrint('Attribute update refused: ${error.message}');
+      throw const AuthFailure(
+        'Please sign out and sign in again, then try once more.',
+      );
+    } on AuthException catch (error) {
+      safePrint('Auth error: ${error.runtimeType}: ${error.message}');
+      throw AuthFailure(_messageFor(error));
     }
   }
 
@@ -587,24 +771,41 @@ class CognitoAuthRepository implements AuthRepository {
     _ => 'Something went wrong. Please try again.',
   };
 
-  static AuthFailure _apiFailure(ApiException error) =>
-      AuthFailure(switch (error.statusCode) {
-        0 => error.message,
-        401 => 'Your session has expired. Please sign in again.',
-        400 => 'Some of your details aren’t valid. Check them and try again.',
-        409 when error.code == 'EMAIL_NOT_VERIFIED' =>
-          'Your new email isn’t verified yet. Please request a new code.',
-        409 when error.code == 'MOBILE_NUMBER_NOT_VERIFIED' =>
-          'Your mobile number isn’t verified yet. Please request a new code.',
-        409 => 'That username is already taken. Try another one.',
-        _ => 'We couldn’t reach inSOL8 right now. Please try again.',
-      });
+  static AuthFailure _apiFailure(ApiException error) => AuthFailure(
+    switch (error.statusCode) {
+      0 => error.message,
+      401 => 'Your session has expired. Please sign in again.',
+      400 => 'Some of your details aren’t valid. Check them and try again.',
+      409 when error.code == 'EMAIL_NOT_VERIFIED' =>
+        'Your new email isn’t verified yet. Please request a new code.',
+      409 when error.code == 'MOBILE_NUMBER_NOT_VERIFIED' =>
+        'Your mobile number isn’t verified yet. Please request a new code.',
+      409 when error.code == 'EMAIL_IN_USE' =>
+        'This email address is already used by another inSOL8 account.',
+      409 when error.code == 'EMAIL_IN_USE_GOOGLE' => 'This email address is already used by an inSOL8 account that signs in with Google.',
+      409 when error.code == 'PHONE_IN_USE' =>
+        'This mobile number is already used by another inSOL8 account.',
+      422 when error.code == 'PHONE_NETWORK_UNSUPPORTED' =>
+        smartNetworkUnsupportedMessage,
+      409 when error.code == 'GOOGLE_ALREADY_CONNECTED' =>
+        'A Google account is already connected.',
+      409 when error.code == 'GOOGLE_ACCOUNT' =>
+        'Your account already signs in with Google.',
+      409 when error.code == 'CONTACT_REQUIRED' =>
+        'Add an email address or mobile number in Account Profile first.',
+      409 when error.code == 'SESSION_RUNNING' =>
+        'Stop your running drying sessions first, then try again.',
+      409 when error.code == 'PASSWORD_EXISTS' =>
+        'Your account already has a password.',
+      500 when error.code == 'ACCOUNT_CONVERSION_INCOMPLETE' =>
+        'Your password couldn’t be set up completely. Please contact support.',
+      409 => 'That username is already taken. Try another one.',
+      _ => 'We couldn’t reach inSOL8 right now. Please try again.',
+    },
+  );
 
-  static String? _normalizePhilippineMobile(String value) {
-    final digits = value.replaceAll(RegExp(r'[\s()-]'), '');
-    final match = RegExp(r'^(?:\+63|63|0)?(9\d{9})$').firstMatch(digits);
-    return match == null ? null : '+63${match.group(1)}';
-  }
+  static String? _normalizePhilippineMobile(String value) =>
+      normalizePhilippineMobile(value);
 
   static String _randomId() {
     final bytes = List<int>.generate(16, (_) => _random.nextInt(256));

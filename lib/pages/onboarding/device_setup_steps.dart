@@ -5,6 +5,7 @@ import 'package:insol8_mobile/theme/app_spacing.dart';
 import 'package:insol8_mobile/widgets/app_page_header.dart';
 
 import 'package:insol8_mobile/pages/onboarding/onboarding_shared_widgets.dart';
+import 'package:insol8_mobile/widgets/error_banner.dart';
 
 class OnboardingConnectDeviceStep extends StatelessWidget {
   const OnboardingConnectDeviceStep({
@@ -100,13 +101,7 @@ class OnboardingConnectDeviceStep extends StatelessWidget {
                   ),
                   if (error != null) ...[
                     const SizedBox(height: 8),
-                    Text(
-                      error!,
-                      style: const TextStyle(
-                        color: AppColors.error,
-                        fontSize: 13,
-                      ),
-                    ),
+                    ErrorBanner(error!),
                   ],
                   const SizedBox(height: 22),
                   Text(
@@ -249,11 +244,7 @@ class OnboardingVerifyDeviceStep extends StatelessWidget {
           ),
           if (error != null) ...[
             const SizedBox(height: 10),
-            Text(
-              error!,
-              textAlign: TextAlign.center,
-              style: const TextStyle(color: AppColors.error, fontSize: 13),
-            ),
+            ErrorBanner(error!),
           ],
         ],
         actions: [
@@ -326,11 +317,7 @@ class OnboardingDeviceSetupStep extends StatelessWidget {
           ),
           if (error != null) ...[
             const SizedBox(height: 8),
-            Text(
-              error!,
-              textAlign: TextAlign.center,
-              style: const TextStyle(color: AppColors.error, fontSize: 13),
-            ),
+            ErrorBanner(error!),
           ],
         ],
         actions: [

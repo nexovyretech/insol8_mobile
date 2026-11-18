@@ -9,7 +9,9 @@ final amplifyConfig = AmplifyOutputs.fromJson({
     'oauth': {
       'identity_providers': ['GOOGLE'],
       'domain': 'insol8-signin-dev.auth.ap-southeast-2.amazoncognito.com',
-      'scopes': ['openid', 'email', 'profile'],
+      // aws.cognito.signin.user.admin lets Google sign-ins add a mobile
+      // number (Cognito's attribute APIs reject tokens without it).
+      'scopes': ['openid', 'email', 'profile', 'aws.cognito.signin.user.admin'],
       'redirect_sign_in_uri': ['com.insol8.mobile://callback/'],
       'redirect_sign_out_uri': ['com.insol8.mobile://signout/'],
       'response_type': 'code',

@@ -2,6 +2,10 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+	<!-- Amplify and the waiting pages handle com.insol8.mobile:// links;
+	     Flutter must not also open them as screens. -->
+	<key>FlutterDeepLinkingEnabled</key>
+	<false/>
 	<!-- Receives the Cognito/Google sign-in and sign-out redirects. -->
 	<key>CFBundleURLTypes</key>
 	<array>

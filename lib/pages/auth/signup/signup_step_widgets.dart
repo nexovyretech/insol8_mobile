@@ -8,6 +8,8 @@ import 'package:insol8_mobile/widgets/auth/auth_password_field.dart';
 import 'package:insol8_mobile/widgets/auth/auth_text_field.dart';
 import 'package:insol8_mobile/widgets/auth/phone_number_field.dart';
 import 'package:insol8_mobile/widgets/auth/verification_code_input.dart';
+import 'package:insol8_mobile/widgets/password_requirements.dart';
+import 'package:insol8_mobile/widgets/resend_code_link.dart';
 
 class SignUpNameStep extends StatelessWidget {
   const SignUpNameStep({
@@ -97,6 +99,7 @@ class SignUpContactStep extends StatelessWidget {
             key: const ValueKey('signup-mobile-contact'),
             controller: mobileController,
             validator: validateMobile,
+            blockSmartNetwork: true,
           ),
         const SizedBox(height: 16),
         Wrap(
@@ -152,7 +155,8 @@ class SignUpPasswordStep extends StatelessWidget {
       children: [
         const SignUpStepHeading(
           title: 'Create a password',
-          description: 'Use at least 8 characters with an uppercase\nletter, a lowercase letter, and a number.',
+          description:
+              'Choose a password that meets all the requirements below.',
         ),
         const SizedBox(height: 28),
         AuthPasswordField(
@@ -170,6 +174,11 @@ class SignUpPasswordStep extends StatelessWidget {
           visible: confirmPasswordVisible,
           onToggleVisibility: onToggleConfirmPasswordVisibility,
           validator: validateConfirmPassword,
+        ),
+        const SizedBox(height: 12),
+        PasswordRequirements(
+          controller: passwordController,
+          confirmController: confirmPasswordController,
         ),
       ],
     );
@@ -296,7 +305,9 @@ class SignUpVerificationStep extends StatelessWidget {
   final List<TextEditingController> codeControllers;
   final List<FocusNode> codeFocusNodes;
   final void Function(int index, String value) onCodeChanged;
-  final VoidCallback onResendCode;
+
+  /// Returns whether a new code was sent (starts the next countdown).
+  final Future<bool> Function() onResendCode;
 
   @override
   Widget build(BuildContext context) {
@@ -318,30 +329,7 @@ class SignUpVerificationStep extends StatelessWidget {
           onChanged: onCodeChanged,
         ),
         const SizedBox(height: 18),
-        Wrap(
-          crossAxisAlignment: WrapCrossAlignment.center,
-          children: [
-            Text(
-              'Didn’t get the code? ',
-              style: Theme.of(context).textTheme.bodyMedium
-                  ?.copyWith(fontSize: 12),
-            ),
-            TextButton(
-              onPressed: onResendCode,
-              style: TextButton.styleFrom(
-                minimumSize: Size.zero,
-                padding: EdgeInsets.zero,
-                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                foregroundColor: AppColors.primary,
-                // Theme-derived like the contact step's link, so the switch
-                // between steps can animate the style without an assertion.
-                textStyle: Theme.of(context).textTheme.bodyMedium
-                    ?.copyWith(fontSize: 12),
-              ),
-              child: const Text('Resend it'),
-            ),
-          ],
-        ),
+        ResendCodeLink(onResend: onResendCode),
       ],
     );
   }

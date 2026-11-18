@@ -8,6 +8,9 @@ import 'package:insol8_mobile/widgets/auth/brand_mark.dart';
 import 'package:insol8_mobile/widgets/auth/phone_number_field.dart';
 import 'package:insol8_mobile/widgets/auth/primary_button.dart';
 import 'package:insol8_mobile/widgets/auth/verification_code_input.dart';
+import 'package:insol8_mobile/widgets/error_banner.dart';
+import 'package:insol8_mobile/widgets/password_requirements.dart';
+import 'package:insol8_mobile/widgets/resend_code_link.dart';
 
 class ForgotPasswordView extends StatelessWidget {
   const ForgotPasswordView({
@@ -61,7 +64,9 @@ class ForgotPasswordView extends StatelessWidget {
   final VoidCallback onBack;
   final VoidCallback onToggleEmail;
   final void Function(int index, String value) onCodeChanged;
-  final VoidCallback onResendCode;
+
+  /// Returns whether a new code was sent (starts the next countdown).
+  final Future<bool> Function() onResendCode;
   final VoidCallback onTogglePasswordVisibility;
   final VoidCallback onToggleConfirmPasswordVisibility;
   final VoidCallback onSendCode;
@@ -130,10 +135,9 @@ class ForgotPasswordView extends StatelessWidget {
                         onChanged: onCodeChanged,
                       ),
                       const SizedBox(height: 12),
-                      _InlineAction(
+                      ResendCodeLink(
                         prefix: 'Didn’t receive the code? ',
-                        action: 'Resend',
-                        onPressed: onResendCode,
+                        onResend: onResendCode,
                       ),
                     ] else if (isNewPasswordStep) ...[
                       AuthPasswordField(
@@ -150,13 +154,14 @@ class ForgotPasswordView extends StatelessWidget {
                         visible: confirmPasswordVisible,
                         onToggleVisibility: onToggleConfirmPasswordVisibility,
                       ),
+                      const SizedBox(height: 12),
+                      PasswordRequirements(
+                        controller: passwordController,
+                        confirmController: confirmPasswordController,
+                      ),
                       if (passwordError != null) ...[
                         const SizedBox(height: 8),
-                        Text(
-                          passwordError!,
-                          style: Theme.of(context).textTheme.bodyMedium
-                              ?.copyWith(fontSize: 12, color: AppColors.error),
-                        ),
+                        ErrorBanner(passwordError!),
                       ],
                     ] else ...[
                       if (isEmail)
@@ -171,6 +176,7 @@ class ForgotPasswordView extends StatelessWidget {
                           controller: identifierController,
                           hintText: 'Enter mobile number',
                           validator: (_) => null,
+                          blockSmartNetwork: true,
                         ),
                       const SizedBox(height: 12),
                       Text(
@@ -249,42 +255,6 @@ class ForgotPasswordView extends StatelessWidget {
           ),
         ),
       ),
-    );
-  }
-}
-
-class _InlineAction extends StatelessWidget {
-  const _InlineAction({
-    required this.prefix,
-    required this.action,
-    required this.onPressed,
-  });
-
-  final String prefix;
-  final String action;
-  final VoidCallback onPressed;
-
-  @override
-  Widget build(BuildContext context) {
-    return Wrap(
-      crossAxisAlignment: WrapCrossAlignment.center,
-      children: [
-        Text(
-          prefix,
-          style: Theme.of(context).textTheme.bodyMedium?.copyWith(fontSize: 12),
-        ),
-        TextButton(
-          onPressed: onPressed,
-          style: TextButton.styleFrom(
-            foregroundColor: AppColors.primary,
-            padding: EdgeInsets.zero,
-            minimumSize: Size.zero,
-            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-            textStyle: const TextStyle(fontSize: 12),
-          ),
-          child: Text(action),
-        ),
-      ],
     );
   }
 }

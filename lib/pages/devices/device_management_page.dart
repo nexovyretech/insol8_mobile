@@ -111,20 +111,25 @@ class _DeviceManagementPageState extends State<DeviceManagementPage> {
               ),
               const SizedBox(width: 8),
               Expanded(
-                child: FilledButton(
-                  onPressed: () {
-                    final value = controller.text.trim();
-                    if (value.isNotEmpty) Navigator.pop(dialogContext, value);
-                  },
-                  style: FilledButton.styleFrom(
-                    backgroundColor: AppColors.primary,
-                    foregroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(14),
+                // Greyed out until a name is typed.
+                child: ValueListenableBuilder<TextEditingValue>(
+                  valueListenable: controller,
+                  builder: (context, value, _) => FilledButton(
+                    onPressed: value.text.trim().isEmpty
+                        ? null
+                        : () => Navigator.pop(dialogContext, value.text.trim()),
+                    style: FilledButton.styleFrom(
+                      backgroundColor: AppColors.primary,
+                      foregroundColor: Colors.white,
+                      disabledBackgroundColor: AppColors.disabled,
+                      disabledForegroundColor: Colors.white,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                      minimumSize: const Size.fromHeight(46),
                     ),
-                    minimumSize: const Size.fromHeight(46),
+                    child: const Text('Save'),
                   ),
-                  child: const Text('Save'),
                 ),
               ),
             ],

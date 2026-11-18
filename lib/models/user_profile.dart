@@ -5,6 +5,7 @@ class UserProfile {
     required this.lastName,
     this.email,
     this.mobileNumber,
+    this.googleEmail,
     this.id,
     this.createdAt,
   });
@@ -15,6 +16,7 @@ class UserProfile {
     lastName: json['lastName'] as String,
     email: json['email'] as String?,
     mobileNumber: json['mobileNumber'] as String?,
+    googleEmail: json['googleEmail'] as String?,
     id: json['id'] as String?,
     createdAt: DateTime.tryParse(json['createdAt'] as String? ?? ''),
   );
@@ -24,6 +26,9 @@ class UserProfile {
   final String lastName;
   final String? email;
   final String? mobileNumber;
+
+  /// The Google account that "Continue with Google" signs in to, if any.
+  final String? googleEmail;
 
   /// The profile's UUID in Neon, shown as the account's User ID.
   final String? id;
@@ -43,6 +48,7 @@ class UserProfile {
     lastName: lastName ?? this.lastName,
     email: email ?? this.email,
     mobileNumber: mobileNumber ?? this.mobileNumber,
+    googleEmail: googleEmail,
     id: id,
     createdAt: createdAt,
   );
