@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'package:insol8_mobile/models/user_profile.dart';
+import 'package:insol8_mobile/utils/phone_number.dart';
 import 'package:insol8_mobile/pages/home/dashboard_bottom_navigation.dart';
 import 'package:insol8_mobile/routes/app_routes.dart';
 import 'package:insol8_mobile/services/auth_repository.dart';
@@ -160,7 +161,7 @@ class _SettingsPageState extends State<SettingsPage> {
                                     ?.copyWith(fontSize: 16, height: 1.2),
                               ),
                               Text(
-                                _profile?.email ?? _profile?.mobileNumber ?? '',
+                                _accountSubtitle(_profile),
                                 style: Theme.of(context).textTheme.bodySmall
                                     ?.copyWith(
                                       color: AppColors.fieldHint,
@@ -338,4 +339,15 @@ class _MenuRow extends StatelessWidget {
       if (!last) const Divider(height: 1, indent: 40),
     ],
   );
+}
+
+/// The line under the name: the account's email, else its mobile number,
+/// else its Google email, else its @username, so it is never blank.
+String _accountSubtitle(UserProfile? profile) {
+  if (profile == null) return '';
+  if (profile.email case final email?) return email;
+  if (profile.mobileNumber case final mobile?) {
+    return formatPhilippineMobile(mobile);
+  }
+  return profile.googleEmail ?? '@${profile.username}';
 }

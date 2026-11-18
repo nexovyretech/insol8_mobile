@@ -6,6 +6,8 @@ import 'package:insol8_mobile/theme/app_spacing.dart';
 import 'package:insol8_mobile/widgets/app_page_header.dart';
 
 import 'package:insol8_mobile/pages/onboarding/onboarding_shared_widgets.dart';
+import 'package:insol8_mobile/utils/profile_rules.dart';
+import 'package:insol8_mobile/widgets/error_banner.dart';
 
 class OnboardingBranchSetupStep extends StatelessWidget {
   const OnboardingBranchSetupStep({
@@ -49,13 +51,17 @@ class OnboardingBranchSetupStep extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Finish stays greyed out until every field is valid; manager names
+    // follow the same letters-only rule as sign-up.
     final canFinish =
         branchNameController.text.trim().isNotEmpty &&
         branchAddressController.text.trim().isNotEmpty &&
         managerOption != null &&
         (managerOption == BranchManagerOption.myself ||
-            (managerFirstNameController.text.trim().isNotEmpty &&
-                managerLastNameController.text.trim().isNotEmpty));
+            (nameProblem(managerFirstNameController.text, 'first name') ==
+                    null &&
+                nameProblem(managerLastNameController.text, 'last name') ==
+                    null));
 
     return OnboardingScaffold(
       showBack: false,
@@ -173,6 +179,7 @@ class OnboardingBranchSetupStep extends StatelessWidget {
                     hint: 'First name',
                     capitalization: TextCapitalization.words,
                     onChanged: onFieldChanged,
+                    validator: (value) => nameProblem(value, 'first name'),
                   ),
                   const SizedBox(height: 12),
                   _BranchTextField(
@@ -180,6 +187,7 @@ class OnboardingBranchSetupStep extends StatelessWidget {
                     hint: 'Last name',
                     capitalization: TextCapitalization.words,
                     onChanged: onFieldChanged,
+                    validator: (value) => nameProblem(value, 'last name'),
                   ),
                 ],
                 const SizedBox(height: 16),
@@ -212,6 +220,7 @@ class _BranchTextField extends StatelessWidget {
     required this.hint,
     required this.onChanged,
     this.capitalization = TextCapitalization.none,
+    this.validator,
   });
 
   final TextEditingController controller;
@@ -219,25 +228,34 @@ class _BranchTextField extends StatelessWidget {
   final VoidCallback onChanged;
   final TextCapitalization capitalization;
 
+  /// Defaults to "required"; errors show live in the error banner.
+  final String? Function(String value)? validator;
+
+  String? _validate(String? value) =>
+      validator?.call(value ?? '') ??
+      ((value ?? '').trim().isEmpty ? 'This field is required.' : null);
+
   @override
-  Widget build(BuildContext context) {
-    return TextFormField(
+  Widget build(BuildContext context) => FieldWithErrorBanner(
+    controller: controller,
+    validator: _validate,
+    builder: (context, validate) => TextFormField(
       controller: controller,
       textCapitalization: capitalization,
       onChanged: (_) => onChanged(),
-      validator: (value) => value == null || value.trim().isEmpty
-          ? 'This field is required.'
-          : null,
+      validator: validate,
+      autovalidateMode: AutovalidateMode.onUserInteraction,
       style: Theme.of(context).textTheme.bodySmall?.copyWith(fontSize: 14),
       decoration: InputDecoration(
         hintText: hint,
+        errorStyle: FieldWithErrorBanner.hiddenErrorStyle,
         contentPadding: const EdgeInsets.symmetric(
           horizontal: 15,
           vertical: 14,
         ),
       ),
-    );
-  }
+    ),
+  );
 }
 
 class _ManagerOptionTile extends StatelessWidget {

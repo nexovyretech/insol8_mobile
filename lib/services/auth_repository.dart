@@ -24,8 +24,9 @@ abstract interface class AuthRepository {
     String? lastName,
   });
 
-  /// Starts an email change: Cognito emails a code to [email] and keeps the
-  /// current address active until [confirmEmailChange] succeeds.
+  /// Starts adding or changing the email: checks that no other account uses
+  /// [email], then Cognito emails it a code and keeps the current address
+  /// active until [confirmEmailChange] succeeds.
   Future<void> requestEmailChange(String email);
 
   /// Confirms the code sent to [email] and saves it to the profile.
@@ -33,6 +34,52 @@ abstract interface class AuthRepository {
     required String email,
     required String code,
   });
+
+  /// Starts adding or changing the mobile number (+639XXXXXXXXX): checks that
+  /// it can receive texts and no other account uses it, then Cognito texts it
+  /// a code. The current number stays active until
+  /// [confirmMobileNumberChange] succeeds.
+  Future<void> requestMobileNumberChange(String mobileNumber);
+
+  /// Confirms the code texted to [mobileNumber] and saves it to the profile.
+  Future<UserProfile> confirmMobileNumberChange({
+    required String mobileNumber,
+    required String code,
+  });
+
+  /// True when the account was created with "Continue with Google" and has
+  /// no password yet (Password & Security then offers "Create password").
+  Future<bool> isGoogleAccount();
+
+  /// "Create password" for a Google sign-up, step 1: Cognito sends a 6-digit
+  /// code to the account's verified email ([toEmail]) or mobile number. Also
+  /// used to resend it.
+  Future<void> sendPasswordCreationCode({required bool toEmail});
+
+  /// Step 2: confirms the code, ends the Google sign-in (the account is about
+  /// to be replaced), has the backend turn the account into one that can
+  /// have a password (keeping its data and Google sign-in) with [password],
+  /// and signs straight back in with it. A [AuthFailure.signedOut] failure
+  /// means the user must sign in again.
+  Future<void> createPassword({
+    required bool toEmail,
+    required String code,
+    required String password,
+  });
+
+  /// Throws an [AuthFailure] when [password] is not the account's current
+  /// password, so Update password can stop before asking for a new one.
+  Future<void> verifyCurrentPassword(String password);
+
+  /// Changes the password; the user stays signed in on this device.
+  Future<void> changePassword({
+    required String currentPassword,
+    required String newPassword,
+  });
+
+  /// Returns the Google sign-in page that connects a Google account to this
+  /// account. Google then sends the browser back to the app.
+  Future<Uri> startGoogleLink();
 
   Future<void> requestVerificationCode({
     required String contact,
@@ -94,12 +141,19 @@ enum AuthLanding {
 
 /// A failure whose [message] is safe and useful to show to the user.
 class AuthFailure implements Exception {
-  const AuthFailure(this.message, {this.isCodeError = false});
+  const AuthFailure(
+    this.message, {
+    this.isCodeError = false,
+    this.signedOut = false,
+  });
 
   final String message;
 
   /// True when a verification or reset code was wrong or expired.
   final bool isCodeError;
+
+  /// True when the user is no longer signed in and must sign in again.
+  final bool signedOut;
 
   @override
   String toString() => 'AuthFailure($message)';
@@ -140,6 +194,44 @@ class UnconfiguredAuthRepository implements AuthRepository {
     required String email,
     required String code,
   }) => Future<UserProfile>.error(const AuthNotConfiguredException());
+
+  @override
+  Future<void> requestMobileNumberChange(String mobileNumber) =>
+      Future<void>.error(const AuthNotConfiguredException());
+
+  @override
+  Future<UserProfile> confirmMobileNumberChange({
+    required String mobileNumber,
+    required String code,
+  }) => Future<UserProfile>.error(const AuthNotConfiguredException());
+
+  @override
+  Future<bool> isGoogleAccount() async => false;
+
+  @override
+  Future<void> sendPasswordCreationCode({required bool toEmail}) =>
+      Future<void>.error(const AuthNotConfiguredException());
+
+  @override
+  Future<void> createPassword({
+    required bool toEmail,
+    required String code,
+    required String password,
+  }) => Future<void>.error(const AuthNotConfiguredException());
+
+  @override
+  Future<void> verifyCurrentPassword(String password) =>
+      Future<void>.error(const AuthNotConfiguredException());
+
+  @override
+  Future<void> changePassword({
+    required String currentPassword,
+    required String newPassword,
+  }) => Future<void>.error(const AuthNotConfiguredException());
+
+  @override
+  Future<Uri> startGoogleLink() =>
+      Future<Uri>.error(const AuthNotConfiguredException());
 
   @override
   Future<void> requestVerificationCode({

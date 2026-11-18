@@ -9,6 +9,9 @@ import 'package:insol8_mobile/routes/app_routes.dart';
 import 'package:insol8_mobile/services/auth_repository.dart';
 import 'package:insol8_mobile/theme/app_colors.dart';
 import 'package:insol8_mobile/theme/app_spacing.dart';
+import 'package:insol8_mobile/utils/password_rules.dart';
+import 'package:insol8_mobile/utils/phone_number.dart';
+import 'package:insol8_mobile/utils/profile_rules.dart';
 import 'package:insol8_mobile/widgets/auth/brand_mark.dart';
 import 'package:insol8_mobile/widgets/auth/primary_button.dart';
 import 'package:insol8_mobile/widgets/auth/signup_progress.dart';
@@ -383,7 +386,13 @@ class _SignUpScreenState extends State<SignUpScreen> {
                             SizedBox(height: progressFormGap),
                           ],
                         ),
-                        Form(key: _formKey, child: _buildStepContent(context)),
+                        Form(
+                          key: _formKey,
+                          // Errors show while typing, since Continue stays
+                          // off until the step is valid.
+                          autovalidateMode: AutovalidateMode.onUserInteraction,
+                          child: _buildStepContent(context),
+                        ),
                         Column(
                           mainAxisSize: MainAxisSize.min,
                           children: [
@@ -433,17 +442,22 @@ class _SignUpScreenState extends State<SignUpScreen> {
     return 'Continue';
   }
 
+  /// Continue stays greyed out until every field on the step is valid.
   bool get _hasCurrentStepInput {
     switch (_step) {
       case 0:
-        return _firstName.text.trim().isNotEmpty &&
-            _lastName.text.trim().isNotEmpty;
+        return _requiredName(_firstName.text, 'first name') == null &&
+            _requiredName(_lastName.text, 'last name') == null;
       case 1:
-        return _activeContact.text.trim().isNotEmpty;
+        if (_isEmail) return _validateContact(_emailContact.text) == null;
+        final digits = _mobileContact.text.replaceAll(RegExp(r'\D'), '');
+        return _validatePhoneNumber(_mobileContact.text) == null &&
+            !isSmartNetworkNumber('+63$digits');
       case 3:
-        return _password.text.isNotEmpty && _confirmPassword.text.isNotEmpty;
+        return passwordProblem(_password.text) == null &&
+            _confirmPassword.text == _password.text;
       case 4:
-        return _username.text.trim().isNotEmpty && _acceptedTerms;
+        return usernameProblem(_username.text) == null && _acceptedTerms;
       case 2:
         return !widget.authRepository.isConfigured ||
             _codeFields.every((field) => field.text.isNotEmpty);
@@ -499,20 +513,8 @@ class _SignUpScreenState extends State<SignUpScreen> {
           onToggleConfirmPasswordVisibility: () => setState(
             () => _isConfirmPasswordVisible = !_isConfirmPasswordVisible,
           ),
-          validatePassword: (value) {
-            if (value == null || value.isEmpty) return 'Enter a password.';
-            if (value.length < 8) return 'Use at least 8 characters.';
-            if (!RegExp(r'[A-Z]').hasMatch(value) ||
-                !RegExp(r'[a-z]').hasMatch(value) ||
-                !RegExp(r'\d').hasMatch(value)) {
-              return 'Include an uppercase letter, a lowercase letter, and a number.';
-            }
-            // Cognito rejects these with a generic error, so explain it here.
-            if (value.trim() != value) {
-              return 'Your password can’t start or end with a space.';
-            }
-            return null;
-          },
+          // The checklist under the fields shows which rule is missing.
+          validatePassword: (value) => passwordProblem(value ?? ''),
           validateConfirmPassword: (value) {
             if (value == null || value.isEmpty) return 'Confirm your password.';
             return value != _password.text ? 'Passwords do not match.' : null;
@@ -524,37 +526,19 @@ class _SignUpScreenState extends State<SignUpScreen> {
           acceptedTerms: _acceptedTerms,
           onTermsChanged: (value) => setState(() => _acceptedTerms = value),
           onOpenLegalDocument: _openLegalDocument,
-          validateUsername: (value) {
-            final username = value?.trim() ?? '';
-            if (username.length < 3) return 'Use at least 3 characters.';
-            if (username.length > 40) return 'Use 40 characters or fewer.';
-            if (!RegExp(r'^[a-zA-Z0-9_.]+$').hasMatch(username)) {
-              return 'Use letters, numbers, dots, or underscores.';
-            }
-            return null;
-          },
+          validateUsername: (value) => usernameProblem(value ?? ''),
         );
       default:
         return const SizedBox.shrink();
     }
   }
 
-  String? _requiredName(String? value, String label) {
-    if (value == null || value.trim().isEmpty) return 'Enter your $label.';
-    if (value.trim().length < 2) return 'Enter at least 2 characters.';
-    // The profile API accepts up to 120; keep names to a sensible length.
-    if (value.trim().length > 50) return 'Use 50 characters or fewer.';
-    return null;
-  }
+  /// Letters only (with spaces, hyphens, apostrophes, periods); shared with
+  /// Account Profile.
+  String? _requiredName(String? value, String label) =>
+      nameProblem(value ?? '', label);
 
-  String? _validateContact(String? value) {
-    final contact = value?.trim() ?? '';
-    if (contact.isEmpty) return 'Enter your email address.';
-    if (!RegExp(r'^[^\s@]+@[^\s@]+\.[^\s@]+$').hasMatch(contact)) {
-      return 'Enter a valid email address.';
-    }
-    return null;
-  }
+  String? _validateContact(String? value) => emailProblem(value ?? '');
 
   String? _validatePhoneNumber(String? value) {
     final digits = value?.replaceAll(RegExp(r'\D'), '') ?? '';
@@ -577,7 +561,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
     return '+63$nationalNumber';
   }
 
-  Future<void> _resendCode() async {
+  Future<bool> _resendCode() async {
     setState(() => _errorMessage = null);
     try {
       await widget.authRepository.resendVerificationCode(
@@ -586,23 +570,27 @@ class _SignUpScreenState extends State<SignUpScreen> {
             ? SignUpContactMethod.email
             : SignUpContactMethod.mobile,
       );
-      if (!mounted) return;
+      if (!mounted) return true;
       setState(() => _errorMessage = 'A new verification code has been sent.');
+      return true;
     } on AuthFailure catch (error) {
-      if (!mounted) return;
-      setState(() => _errorMessage = error.message);
+      if (mounted) setState(() => _errorMessage = error.message);
     } on AuthNotConfiguredException {
-      if (!mounted) return;
-      setState(
-        () => _errorMessage =
-            'Resending will work when the backend is connected.',
-      );
+      if (mounted) {
+        setState(
+          () => _errorMessage =
+              'Resending will work when the backend is connected.',
+        );
+      }
     } catch (_) {
-      if (!mounted) return;
-      setState(
-        () => _errorMessage = 'We couldn’t resend the code. Please try again.',
-      );
+      if (mounted) {
+        setState(
+          () =>
+              _errorMessage = 'We couldn’t resend the code. Please try again.',
+        );
+      }
     }
+    return false;
   }
 
   void _showSignInNotice() {

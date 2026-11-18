@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'package:insol8_mobile/theme/app_colors.dart';
+import 'package:insol8_mobile/widgets/error_banner.dart';
 
 class SignUpStepHeading extends StatelessWidget {
   const SignUpStepHeading({
@@ -66,6 +67,7 @@ class SignUpMessageBanner extends StatelessWidget {
     final success =
         message == 'Your account has been verified.' ||
         message == 'A new verification code has been sent.';
+    if (!success) return ErrorBanner(message);
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),

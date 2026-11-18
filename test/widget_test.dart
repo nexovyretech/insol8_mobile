@@ -14,6 +14,7 @@ import 'package:insol8_mobile/widgets/auth/verification_code_input.dart';
 
 import 'support/fake_onboarding_repository.dart';
 import 'support/fake_repositories.dart';
+import 'support/password_checklist.dart';
 
 Widget _app(AuthRepository auth, String initialRoute) => Insol8App(
   authRepository: auth,
@@ -245,7 +246,8 @@ void main() {
     await tester.tap(find.text('Use mobile number'));
     await tester.pumpAndSettle();
     final mobileField = find.byType(TextFormField).first;
-    await tester.enterText(mobileField, '9123456789');
+    // A Globe number: Smart/TNT numbers (like 912) can't get a reset code.
+    await tester.enterText(mobileField, '9171234567');
     await tester.pumpAndSettle();
     await tester.tap(find.text('Send Code'));
     await tester.pumpAndSettle();
@@ -495,7 +497,7 @@ void main() {
     await _tapVisible(tester, find.text('Continue'));
     await tester.pumpAndSettle();
 
-    expect(find.text('Passwords do not match.'), findsOneWidget);
+    expect(inErrorBanner('Passwords do not match.'), findsOneWidget);
     expect(find.text('Create a password'), findsOneWidget);
   });
 
@@ -520,22 +522,37 @@ void main() {
       of: find.byType(AuthPasswordField),
       matching: find.byType(TextField),
     );
-    await tester.enterText(fields.at(0), 'weakpass');
-    await tester.pump();
+    // Nothing typed yet: every checklist line is neutral.
     expect(
-      find.text(
-        'Include an uppercase letter, a lowercase letter, and a number.',
-      ),
-      findsOneWidget,
+      checklistIcon(tester, 'A number'),
+      Icons.radio_button_unchecked_rounded,
     );
+    // Each line ticks green or crosses red as the password is typed.
+    await tester.enterText(fields.at(0), 'weakpass');
+    await tester.pumpAndSettle();
+    expect(
+      checklistIcon(tester, 'At least 8 characters'),
+      Icons.check_circle_rounded,
+    );
+    expect(
+      checklistIcon(tester, 'A lowercase letter'),
+      Icons.check_circle_rounded,
+    );
+    expect(checklistIcon(tester, 'An uppercase letter'), Icons.cancel_rounded);
+    expect(checklistIcon(tester, 'A number'), Icons.cancel_rounded);
+
     await tester.enterText(fields.at(0), 'NewPass12');
     await tester.enterText(fields.at(1), 'NewPass13');
-    await tester.pump();
-    expect(find.text('Passwords do not match.'), findsOneWidget);
+    await tester.pumpAndSettle();
+    expect(checklistIcon(tester, 'A number'), Icons.check_circle_rounded);
+    expect(checklistIcon(tester, 'Passwords match'), Icons.cancel_rounded);
     expect(_isEnabled(tester, 'Set New Password'), isFalse);
     await tester.enterText(fields.at(1), 'NewPass12');
-    await tester.pump();
-    expect(find.text('Passwords do not match.'), findsNothing);
+    await tester.pumpAndSettle();
+    expect(
+      checklistIcon(tester, 'Passwords match'),
+      Icons.check_circle_rounded,
+    );
     expect(_isEnabled(tester, 'Set New Password'), isTrue);
   });
 }

@@ -26,6 +26,15 @@
                 android:name="io.flutter.embedding.android.NormalTheme"
                 android:resource="@style/NormalTheme" />
 
+            <!-- com.insol8.mobile:// links (sign-in, sign-out, payment and
+                 Google-connect returns) are handled by Amplify and the pages
+                 that wait for them. Without this, Flutter also opens each one
+                 as a screen, which put the login screen over Settings after
+                 a Google sign-out. -->
+            <meta-data
+                android:name="flutter_deeplinking_enabled"
+                android:value="false" />
+
             <!-- Launch the InSOL8 app normally -->
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
@@ -59,6 +68,20 @@
                 <data
                     android:scheme="com.insol8.mobile"
                     android:host="payment" />
+            </intent-filter>
+
+            <!-- Connecting Google in Password & Security returns here
+                 (com.insol8.mobile://account/google?status=...); also kept
+                 apart from the sign-in hosts. -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+
+                <data
+                    android:scheme="com.insol8.mobile"
+                    android:host="account" />
             </intent-filter>
 
         </activity>
