@@ -12,6 +12,14 @@ class ReleaseNote {
 
 /// Newest first.
 const releaseNotes = <ReleaseNote>[
+  ReleaseNote('0.7.0', [
+    'Account Profile: edit your name and username, and add or change your email and mobile number.',
+    'Password & Security: connect Google, create a password for Google sign-ups, or update your password.',
+    'Billing Information: see your plan, billing dates, and payment method, with payment history and PDF receipts.',
+    'Change plan: upgrade for just the difference, switch to Basic at the end of your billing cycle, or cancel anytime.',
+    'New prices: Basic ₱249.99 and Organization ₱499.99.',
+    'A live password checklist, clearer error messages, and a resend timer on code screens.',
+  ]),
   ReleaseNote('0.6.3', [
     'Check for updates and What’s new now live in Settings > About Us.',
     'About Us shows the version you have installed.',
