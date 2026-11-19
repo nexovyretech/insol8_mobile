@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 
+import 'package:insol8_mobile/models/billing.dart';
 import 'package:insol8_mobile/models/legal_document.dart';
 import 'package:insol8_mobile/constants/legal_documents.dart';
 import 'package:insol8_mobile/pages/home/dashboard_bottom_navigation.dart';
@@ -11,6 +12,7 @@ import 'package:insol8_mobile/services/auth_repository.dart';
 import 'package:insol8_mobile/services/subscription_repository.dart';
 import 'package:insol8_mobile/theme/app_colors.dart';
 import 'package:insol8_mobile/theme/app_spacing.dart';
+import 'package:insol8_mobile/utils/display_format.dart';
 import 'package:insol8_mobile/widgets/app_page_header.dart';
 import 'package:insol8_mobile/widgets/app_update_listener.dart';
 import 'package:insol8_mobile/widgets/whats_new_sheet.dart';
@@ -52,6 +54,10 @@ class SettingsContentPage extends StatefulWidget {
 class _SettingsContentPageState extends State<SettingsContentPage> {
   String? _planId;
   bool _loading = true;
+
+  /// Billing Information's data from `GET /billing/subscription`; null while
+  /// loading or when it couldn't load (rows then show "—").
+  SubscriptionDetails? _subscription;
   String _theme = 'Light';
   String? _issueCategory;
   String? _issueArea;
@@ -172,10 +178,25 @@ class _SettingsContentPageState extends State<SettingsContentPage> {
   }
 
   Future<void> _loadAccount() async {
+    // Billing reads everything from one call; other pages only need the plan
+    // for the bottom navigation.
+    if (widget.type == SettingsContentType.billing) {
+      try {
+        final subscription = await widget.subscriptionRepository
+            .fetchSubscription();
+        if (!mounted) return;
+        setState(() {
+          _subscription = subscription;
+          _planId = subscription.hasAccess ? subscription.plan?.id : null;
+          _loading = false;
+        });
+      } on Exception {
+        if (mounted) setState(() => _loading = false);
+      }
+      return;
+    }
     try {
-      final planId =
-          await widget.subscriptionRepository.fetchActivePlanId() ??
-          SubscriptionPlanIds.basic;
+      final planId = await widget.subscriptionRepository.fetchActivePlanId();
       if (!mounted) return;
       setState(() {
         _planId = planId;
@@ -220,23 +241,63 @@ class _SettingsContentPageState extends State<SettingsContentPage> {
     }
   }
 
+  bool _changingSubscription = false;
+
+  /// Cancel: the plan ends on its end date, with no grace period afterwards.
   Future<void> _cancelSubscription() async {
+    final subscription = _subscription;
+    final plan = subscription?.plan?.typeLabel ?? 'current';
+    final end = subscription?.currentPeriodEnd;
     final confirmed = await showDialog<bool>(
       context: context,
-      builder: (context) => const _SettingsModal(
+      builder: (context) => _SettingsModal(
         message:
             'Are you sure you want to cancel? If you cancel now, you’ll '
-            'still have full access to your Org Tier features until the end '
-            'of your billing cycle on October 01, 2026.',
+            'still have full access to your $plan plan features until the end '
+            'of your billing cycle${end == null ? '' : ' on ${formatDate(end)}'}. '
+            'After that, your dashboard stays locked until you subscribe again.',
         boldText: 'Are you sure you want to cancel?',
-        cancelLabel: 'Cancel',
-        confirmLabel: 'OK',
+        cancelLabel: 'Keep plan',
+        confirmLabel: 'Cancel plan',
       ),
     );
     if (!mounted || confirmed != true) return;
-    _message(
-      'Subscription cancellation is not connected yet. Please contact support.',
+    await _changeSubscription(
+      widget.subscriptionRepository.cancelSubscription,
+      success: end == null
+          ? 'Your subscription is cancelled.'
+          : 'Your subscription is cancelled. You have full access until '
+                '${formatDate(end)}.',
     );
+  }
+
+  /// Undoes a cancellation or a scheduled switch to Basic.
+  Future<void> _resumeSubscription() => _changeSubscription(
+    widget.subscriptionRepository.resumeSubscription,
+    success: 'Your subscription continues as before.',
+  );
+
+  Future<void> _changeSubscription(
+    Future<SubscriptionDetails> Function() change, {
+    required String success,
+  }) async {
+    setState(() => _changingSubscription = true);
+    try {
+      final subscription = await change();
+      if (!mounted) return;
+      setState(() => _subscription = subscription);
+      _message(success);
+    } on Exception {
+      _message('Couldn’t update your subscription. Please try again.');
+    } finally {
+      if (mounted) setState(() => _changingSubscription = false);
+    }
+  }
+
+  Future<void> _openChangePlan() async {
+    await Navigator.of(context)
+        .pushNamed(AppRoutes.changePlan, arguments: _planId);
+    if (mounted) await _loadAccount();
   }
 
   @override
@@ -302,76 +363,171 @@ class _SettingsContentPageState extends State<SettingsContentPage> {
     SettingsContentType.aboutUs => _aboutUsContent(),
   };
 
-  Widget _billingContent() => Column(
-    crossAxisAlignment: CrossAxisAlignment.start,
-    children: [
-      const _SettingsSection('Current Subscription'),
-      _SettingsCard(
-        children: [
-          _SettingsRow(
-            'Org Tier',
-            _planId == SubscriptionPlanIds.basic ? 'Inactive' : 'Active',
-          ),
-          const _SettingsRow('Plan pricing', 'Php 250 / month'),
-          _SettingsRow(
-            'Change plan',
-            '›',
-            onTap: () async {
-              await Navigator.of(context)
-                  .pushNamed(AppRoutes.changePlan, arguments: _planId);
-              if (mounted) await _loadAccount();
-            },
-            last: true,
-          ),
-        ],
-      ),
-      const SizedBox(height: 18),
-      const _SettingsSection('Billing Details'),
-      const _SettingsCard(
-        children: [
-          _SettingsRow('Payment status', 'Paid'),
-          _SettingsRow('Next billing date', 'October 01, 2026'),
-          _SettingsRow('Subscription started', 'September 01, 2026'),
-          _SettingsRow('Payment method', 'e-Wallet', last: true),
-        ],
-      ),
-      const SizedBox(height: 18),
-      const _SettingsSection('Invoice & History'),
-      _SettingsCard(
-        children: [
-          _SettingsRow(
-            'See history',
-            '›',
-            onTap: () => _message('Invoice history is not connected yet.'),
-            last: true,
-          ),
-        ],
-      ),
-      const SizedBox(height: 18),
-      const _SettingsSection('Danger Zone'),
-      Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 20),
-        child: SizedBox(
-          width: double.infinity,
-          height: 48,
-          child: FilledButton(
-            onPressed: _planId == SubscriptionPlanIds.organization
-                ? _cancelSubscription
-                : null,
-            child: const Text('Cancel subscription'),
-          ),
+  Widget _billingContent() {
+    final subscription = _subscription;
+    final plan = subscription?.plan;
+    final amount = plan?.amountCentavos;
+    final start = subscription?.currentPeriodStart;
+    final end = subscription?.currentPeriodEnd;
+    final scheduled = subscription?.scheduledChange;
+    final cancelled = subscription?.cancelAtPeriodEnd == true;
+    final (dateLabel, dateValue) = switch (subscription?.status) {
+      'grace' => ('Renew by', subscription?.graceEndsAt),
+      'expired' => ('Expired on', end),
+      _ when cancelled => ('Ends on', end),
+      _ => ('Next billing date', end),
+    };
+    final notice = _billingNotice(subscription);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        if (notice != null) ...[notice, const SizedBox(height: 16)],
+        const _SettingsSection('Current Subscription'),
+        _SettingsCard(
+          children: [
+            _SettingsRow(
+              'Plan type',
+              subscription == null
+                  ? '—'
+                  : plan?.typeLabel ?? planTypeLabel(null),
+            ),
+            _SettingsRow(
+              'Plan pricing',
+              amount == null ? '—' : '${formatPeso(amount)} / month',
+            ),
+            _SettingsRow(
+              'Change plan',
+              '›',
+              onTap: _openChangePlan,
+              last: true,
+            ),
+          ],
         ),
-      ),
-      const SizedBox(height: 8),
-      const Text(
-        'Canceling will downgrade your organization to the Basic plan at the '
-        'end of this billing cycle. Branch pool and multi-location '
-        'assignments will be disabled.',
-        textAlign: TextAlign.center,
-        style: TextStyle(color: AppColors.fieldHint, fontSize: 12, height: 1.3),
-      ),
-    ],
-  );
+        const SizedBox(height: 18),
+        const _SettingsSection('Billing Details'),
+        _SettingsCard(
+          children: [
+            _SettingsRow(
+              'Payment status',
+              subscription?.statusLabel ?? '—',
+              valueColor: switch (subscription?.status) {
+                'active' when cancelled => AppColors.primary,
+                'active' => AppColors.success,
+                'grace' => AppColors.primary,
+                'expired' => AppColors.error,
+                'pending_payment' || 'selected' => AppColors.primary,
+                _ => null,
+              },
+            ),
+            _SettingsRow(
+              dateLabel,
+              dateValue == null ? '—' : formatDate(dateValue),
+            ),
+            _SettingsRow(
+              'Subscription started',
+              start == null ? '—' : formatDate(start),
+            ),
+            _SettingsRow(
+              'Payment method',
+              subscription?.lastPayment?.paymentMethodName ?? '—',
+              last: true,
+            ),
+          ],
+        ),
+        const SizedBox(height: 18),
+        const _SettingsSection('Receipts & History'),
+        _SettingsCard(
+          children: [
+            _SettingsRow(
+              'See history',
+              '›',
+              onTap: () =>
+                  Navigator.of(context).pushNamed(AppRoutes.paymentHistory),
+              last: true,
+            ),
+          ],
+        ),
+        if (subscription?.isActive == true) ...[
+          const SizedBox(height: 18),
+          const _SettingsSection('Danger Zone'),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 20),
+            child: SizedBox(
+              width: double.infinity,
+              height: 48,
+              child: FilledButton(
+                onPressed: _changingSubscription
+                    ? null
+                    : (cancelled || scheduled != null)
+                    ? _resumeSubscription
+                    : _cancelSubscription,
+                child: Text(
+                  cancelled
+                      ? 'Resume subscription'
+                      : scheduled != null
+                      ? 'Keep ${plan?.typeLabel ?? 'current'} plan'
+                      : 'Cancel subscription',
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            cancelled
+                ? 'Resuming keeps your plan going after ${end == null ? 'this period' : formatDate(end)}.'
+                : 'You keep full access until the end of the billing cycle '
+                      'you already paid for.',
+            textAlign: TextAlign.center,
+            style: const TextStyle(
+              color: AppColors.fieldHint,
+              fontSize: 12,
+              height: 1.3,
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+
+  /// A heads-up at the top of Billing for a pending change or a renewal due.
+  Widget? _billingNotice(SubscriptionDetails? subscription) {
+    if (subscription == null) return null;
+    final end = subscription.currentPeriodEnd;
+    final scheduled = subscription.scheduledChange;
+    final grace = subscription.graceEndsAt;
+    if (subscription.isActive && subscription.cancelAtPeriodEnd) {
+      return _BillingNotice(
+        icon: Icons.event_busy_outlined,
+        title: 'Your subscription is cancelled',
+        message: end == null
+            ? 'You keep full access until the end of this billing cycle.'
+            : 'You keep full access until ${formatDate(end)}. After that, '
+                  'your dashboard locks until you subscribe again.',
+      );
+    }
+    if (subscription.isActive && scheduled != null) {
+      return _BillingNotice(
+        icon: Icons.swap_horiz_rounded,
+        title: 'Switching to ${planTypeLabel(scheduled.planId)}',
+        message:
+            'Your ${subscription.plan?.typeLabel ?? 'current'} plan stays '
+            'active until ${formatDate(scheduled.effectiveAt)}. Then one '
+            'branch stays and the others are archived.',
+      );
+    }
+    if (subscription.isInGracePeriod) {
+      return _BillingNotice(
+        icon: Icons.schedule_rounded,
+        title: 'Your plan has ended',
+        message:
+            'You still have full access${grace == null ? '' : ' until ${formatDate(grace)}'}. '
+            'Renew to keep using your dashboard.',
+        actionLabel: 'Renew now',
+        onAction: _openChangePlan,
+      );
+    }
+    return null;
+  }
 
   Widget _preferencesContent() => Column(
     crossAxisAlignment: CrossAxisAlignment.start,
@@ -419,7 +575,7 @@ class _SettingsContentPageState extends State<SettingsContentPage> {
         'How do manager permissions work?',
       ],
       'Subscription & Billing': [
-        'What is the difference between Basic and Org Tier?',
+        'What is the difference between the Basic and Organization plans?',
         'How do I upgrade or cancel my plan?',
       ],
     };
@@ -805,6 +961,89 @@ class _SettingsContentPageState extends State<SettingsContentPage> {
       );
 }
 
+/// A soft orange heads-up card (pending changes, renewal due).
+class _BillingNotice extends StatelessWidget {
+  const _BillingNotice({
+    required this.icon,
+    required this.title,
+    required this.message,
+    this.actionLabel,
+    this.onAction,
+  });
+
+  final IconData icon;
+  final String title;
+  final String message;
+  final String? actionLabel;
+  final VoidCallback? onAction;
+
+  @override
+  Widget build(BuildContext context) => Container(
+    padding: const EdgeInsets.all(14),
+    decoration: BoxDecoration(
+      color: AppColors.dashboardCard,
+      borderRadius: BorderRadius.circular(16),
+      border: Border.all(color: AppColors.dashboardBorder),
+    ),
+    child: Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Container(
+          width: 36,
+          height: 36,
+          decoration: const BoxDecoration(
+            color: AppColors.dashboardIconBackground,
+            shape: BoxShape.circle,
+          ),
+          child: Icon(icon, color: AppColors.primary, size: 19),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                title,
+                style: const TextStyle(
+                  color: AppColors.ink,
+                  fontSize: 14,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              const SizedBox(height: 3),
+              Text(
+                message,
+                style: const TextStyle(
+                  color: AppColors.body,
+                  fontSize: 12.5,
+                  height: 1.35,
+                ),
+              ),
+              if (actionLabel case final label?) ...[
+                const SizedBox(height: 8),
+                SizedBox(
+                  height: 34,
+                  child: FilledButton(
+                    onPressed: onAction,
+                    style: FilledButton.styleFrom(
+                      backgroundColor: AppColors.primary,
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                    child: Text(label, style: const TextStyle(fontSize: 13)),
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ),
+      ],
+    ),
+  );
+}
+
 class _SettingsSection extends StatelessWidget {
   const _SettingsSection(this.label);
   final String label;
@@ -1077,7 +1316,7 @@ class _FaqRowState extends State<_FaqRow> {
       return 'Check the dryer power and Wi-Fi connection, then allow the device a moment to reconnect.';
     }
     if (question.contains('difference between Basic')) {
-      return 'Basic is for a single laundry shop. Org supports multiple branches and managers.';
+      return 'Basic is for a single laundry shop. Organization supports multiple branches and managers.';
     }
     if (question.contains('cancel my plan')) {
       return 'Open Settings, choose Billing Information, then select Cancel subscription.';

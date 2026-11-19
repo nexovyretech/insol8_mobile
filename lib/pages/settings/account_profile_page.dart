@@ -510,10 +510,10 @@ class _AccountProfilePageState extends State<AccountProfilePage> {
   }
 
   /// Only a plan the backend reports; an account without one says so
-  /// rather than showing a made-up "Basic Tier".
+  /// rather than showing a made-up "Basic".
   String _planLabel(String? plan) => switch (plan) {
-    SubscriptionPlanIds.organization => 'Org Tier',
-    SubscriptionPlanIds.basic => 'Basic Tier',
+    SubscriptionPlanIds.organization => 'Organization',
+    SubscriptionPlanIds.basic => 'Basic',
     null => 'No plan yet',
     _ => '—',
   };

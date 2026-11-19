@@ -17,9 +17,25 @@ class OnboardingPaymentStep extends StatelessWidget {
     required this.onPaymentMethodChanged,
     required this.onBack,
     required this.onContinue,
+    this.amountCentavos,
+    this.note,
+    this.renewal = false,
   });
 
   final SubscriptionPlan plan;
+
+  /// Paying again for the current plan: the title says "Renew early".
+  final bool renewal;
+
+  /// What this payment costs when it differs from the monthly price (a
+  /// prorated upgrade); the plan price otherwise.
+  final int? amountCentavos;
+
+  /// Explains [amountCentavos] (for example, how an upgrade is priced).
+  final String? note;
+
+  double get _amount =>
+      amountCentavos == null ? plan.price : amountCentavos! / 100;
 
   /// When the following payment falls due if this one goes through.
   final DateTime nextBillingDate;
@@ -43,7 +59,7 @@ class OnboardingPaymentStep extends StatelessWidget {
         content: [
           const SizedBox(height: 20),
           Text(
-            'Complete your\nsubscription',
+            renewal ? 'Renew your plan\nearly' : 'Complete your\nsubscription',
             textAlign: TextAlign.center,
             style: Theme.of(context).textTheme.titleLarge
                 ?.copyWith(fontSize: 22),
@@ -58,7 +74,13 @@ class OnboardingPaymentStep extends StatelessWidget {
           const SizedBox(height: 18),
           const OnboardingSectionLabel('Subscription Summary'),
           const SizedBox(height: 8),
-          _SubscriptionSummary(plan: plan, nextBillingDate: nextBillingDate),
+          _SubscriptionSummary(
+            plan: plan,
+            nextBillingDate: nextBillingDate,
+            amount: _amount,
+            note: note,
+            priceCaption: note != null && !renewal ? 'prorated' : '/ month',
+          ),
           const SizedBox(height: 14),
           const OnboardingSectionLabel('Payment Method'),
           const SizedBox(height: 8),
@@ -87,7 +109,7 @@ class OnboardingPaymentStep extends StatelessWidget {
         actions: [
           OnboardingGradientButton(
             label:
-                'Pay ₱ ${plan.price.toStringAsFixed(2)} via ${paymentMethod.label}',
+                'Pay ₱ ${_amount.toStringAsFixed(2)} via ${paymentMethod.label}',
             onPressed: onContinue,
           ),
           const SizedBox(height: 14),
@@ -122,10 +144,18 @@ class _SubscriptionSummary extends StatelessWidget {
   const _SubscriptionSummary({
     required this.plan,
     required this.nextBillingDate,
+    required this.amount,
+    this.note,
+    this.priceCaption = '/ month',
   });
 
   final SubscriptionPlan plan;
   final DateTime nextBillingDate;
+  final double amount;
+  final String? note;
+
+  /// Under the price: "/ month", or "prorated" for an upgrade.
+  final String priceCaption;
 
   @override
   Widget build(BuildContext context) {
@@ -159,7 +189,7 @@ class _SubscriptionSummary extends StatelessWidget {
                 ),
               ),
               Text(
-                '₱ ${plan.price.toStringAsFixed(2)}',
+                '₱ ${amount.toStringAsFixed(2)}',
                 style: const TextStyle(
                   color: AppColors.primaryDark,
                   fontSize: 22,
@@ -171,11 +201,30 @@ class _SubscriptionSummary extends StatelessWidget {
           Align(
             alignment: Alignment.centerRight,
             child: Text(
-              '/ month',
+              priceCaption,
               style: Theme.of(context).textTheme.bodySmall
                   ?.copyWith(fontSize: 13),
             ),
           ),
+          if (note case final note?) ...[
+            const SizedBox(height: 8),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: AppColors.dashboardCard,
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Text(
+                note,
+                style: const TextStyle(
+                  color: AppColors.body,
+                  fontSize: 12,
+                  height: 1.35,
+                ),
+              ),
+            ),
+          ],
           const Divider(height: 18, color: Color(0xFFFFD7C2)),
           Text(
             'Features included:',
@@ -354,7 +403,11 @@ class OnboardingPaymentSuccessStep extends StatelessWidget {
     this.reference,
     this.nextBillingDate,
     this.skipLabel = 'Skip to Dashboard for now',
+    this.amountCentavos,
   });
+
+  /// What was paid when it differs from the monthly price (an upgrade).
+  final int? amountCentavos;
 
   final SubscriptionPlan plan;
   final String buttonLabel;
@@ -398,7 +451,7 @@ class OnboardingPaymentSuccessStep extends StatelessWidget {
           ),
           const SizedBox(height: 22),
           Text(
-            'You paid ₱ ${plan.price.toStringAsFixed(2)} to',
+            'You paid ₱ ${(amountCentavos == null ? plan.price : amountCentavos! / 100).toStringAsFixed(2)} to',
             textAlign: TextAlign.center,
             style: Theme.of(context).textTheme.titleMedium?.copyWith(
               color: AppColors.primaryDark,

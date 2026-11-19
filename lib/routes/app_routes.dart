@@ -16,6 +16,8 @@ abstract final class AppRoutes {
   static const accountProfile = '/settings/account-profile';
   static const passwordSecurity = '/settings/password-security';
   static const billingInformation = '/settings/billing-information';
+  static const paymentHistory = '/settings/billing-information/history';
+  static const subscriptionLocked = '/subscription/ended';
   static const changePlan = '/settings/change-plan';
   static const preferences = '/settings/preferences';
   static const faqs = '/settings/faqs';
