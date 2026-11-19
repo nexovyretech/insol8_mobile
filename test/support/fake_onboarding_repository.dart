@@ -19,7 +19,7 @@ class FakeOnboardingRepository implements OnboardingRepository {
     SubscriptionPlan(
       id: 'basic',
       name: 'Basic tier',
-      price: 250,
+      price: 249.99,
       description: 'For single laundry shops.',
       features: [
         'Multiple device registration',
@@ -31,7 +31,7 @@ class FakeOnboardingRepository implements OnboardingRepository {
     SubscriptionPlan(
       id: 'organization',
       name: 'Organization tier',
-      price: 500,
+      price: 499.99,
       description: 'For multi-branch businesses.',
       features: [
         'Multiple device registration',
@@ -62,6 +62,7 @@ class FakeOnboardingRepository implements OnboardingRepository {
   Future<CheckoutSession> createCheckoutSession({
     required String planId,
     required SubscriptionPaymentMethod paymentMethod,
+    String? keepBranchId,
   }) async {
     await Future<void>.delayed(const Duration(milliseconds: 500));
     _paid = true;

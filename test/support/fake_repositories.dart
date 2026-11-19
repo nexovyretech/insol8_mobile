@@ -1,3 +1,4 @@
+import 'package:insol8_mobile/models/billing.dart';
 import 'package:insol8_mobile/models/dashboard_data.dart';
 import 'package:insol8_mobile/services/analytics_repository.dart';
 import 'package:insol8_mobile/services/branch_repository.dart';
@@ -29,6 +30,38 @@ class FakeSubscriptionRepository implements SubscriptionRepository {
 
   @override
   Future<String?> fetchActivePlanId() async => planId;
+
+  @override
+  Future<SubscriptionDetails> fetchSubscription() async => SubscriptionDetails(
+    status: planId == null ? 'none' : 'active',
+    hasAccess: planId != null,
+    plan: planId == null ? null : BillingPlan(id: planId!, name: planId!),
+  );
+
+  @override
+  Future<List<PaymentRecord>> fetchPayments() async => const [];
+
+  @override
+  Future<PlanQuote> fetchQuote(String planId) async => PlanQuote(
+    kind: 'new',
+    planId: planId,
+    amountCentavos: 25000,
+    fullAmountCentavos: 25000,
+    periodStart: DateTime(2026, 11, 1),
+    periodEnd: DateTime(2026, 12, 1),
+  );
+
+  @override
+  Future<SubscriptionDetails> cancelSubscription() => fetchSubscription();
+
+  @override
+  Future<SubscriptionDetails> resumeSubscription() => fetchSubscription();
+
+  @override
+  Future<SubscriptionDetails> scheduleDowngrade({
+    required String planId,
+    String? keepBranchId,
+  }) => fetchSubscription();
 }
 
 // Pages these tests never open; any call fails the test.

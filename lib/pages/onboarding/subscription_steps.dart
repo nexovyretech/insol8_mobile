@@ -19,10 +19,14 @@ class OnboardingSubscriptionStep extends StatelessWidget {
     required this.onPlanSelected,
     required this.onBack,
     required this.onContinue,
+    this.currentPlanId,
   });
 
   final int selectedPlan;
   final List<SubscriptionPlan> plans;
+
+  /// Change plan: the plan the account is on, marked "Current plan".
+  final String? currentPlanId;
   final ValueChanged<int> onPlanSelected;
   final VoidCallback onBack;
   final VoidCallback onContinue;
@@ -60,11 +64,12 @@ class OnboardingSubscriptionStep extends StatelessWidget {
           _PlanSelectionCard(
             plans: plans,
             selectedPlan: selectedPlan,
+            currentPlanId: currentPlanId,
             onPlanSelected: onPlanSelected,
           ),
           const SizedBox(height: 12),
           Text(
-            'Auto-renews unless canceled at least 24 hours before your billing cycle ends. Cancel anytime in Account Settings.',
+            'Each payment covers one month and does not renew on its own. Renew, change, or cancel your plan anytime in Billing Information.',
             textAlign: TextAlign.center,
             style: Theme.of(context).textTheme.bodySmall?.copyWith(
               color: AppColors.fieldHint,
@@ -283,11 +288,13 @@ class _PlanSelectionCard extends StatelessWidget {
     required this.plans,
     required this.selectedPlan,
     required this.onPlanSelected,
+    this.currentPlanId,
   });
 
   final List<SubscriptionPlan> plans;
   final int selectedPlan;
   final ValueChanged<int> onPlanSelected;
+  final String? currentPlanId;
 
   @override
   Widget build(BuildContext context) {
@@ -301,6 +308,7 @@ class _PlanSelectionCard extends StatelessWidget {
               child: _PlanOption(
                 plan: plans[index],
                 selected: selectedPlan == index,
+                current: plans[index].id == currentPlanId,
                 onTap: () => onPlanSelected(index),
               ),
             ),
@@ -316,11 +324,15 @@ class _PlanOption extends StatelessWidget {
     required this.plan,
     required this.selected,
     required this.onTap,
+    this.current = false,
   });
 
   final SubscriptionPlan plan;
   final bool selected;
   final VoidCallback onTap;
+
+  /// The plan the account is on now.
+  final bool current;
 
   @override
   Widget build(BuildContext context) {
@@ -343,6 +355,29 @@ class _PlanOption extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
+              if (current) ...[
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 7,
+                    vertical: 2,
+                  ),
+                  decoration: BoxDecoration(
+                    color: selected
+                        ? Colors.white.withValues(alpha: 0.22)
+                        : AppColors.dashboardIconBackground,
+                    borderRadius: BorderRadius.circular(999),
+                  ),
+                  child: Text(
+                    'Current plan',
+                    style: TextStyle(
+                      color: foreground,
+                      fontSize: 10,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 6),
+              ],
               Text(
                 plan.name,
                 maxLines: 1,

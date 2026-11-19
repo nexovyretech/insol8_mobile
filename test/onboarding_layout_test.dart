@@ -18,7 +18,7 @@ const _tall = Size(430, 1400);
 const _plan = SubscriptionPlan(
   id: 'basic',
   name: 'Basic tier',
-  price: 250,
+  price: 249.99,
   description: 'For a single shop',
   features: ['One branch'],
 );
@@ -55,7 +55,7 @@ final Map<String, (Widget Function(), String)> _screens = {
       onBack: _noop,
       onContinue: _noop,
     ),
-    'Pay ₱ 250.00 via GCash',
+    'Pay ₱ 249.99 via GCash',
   ),
   'payment success': (
     () => const OnboardingPaymentSuccessStep(

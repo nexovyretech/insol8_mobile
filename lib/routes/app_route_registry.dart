@@ -13,6 +13,8 @@ import 'package:insol8_mobile/pages/devices/devices_page.dart';
 import 'package:insol8_mobile/pages/home/home_page.dart';
 import 'package:insol8_mobile/pages/settings/settings_page.dart';
 import 'package:insol8_mobile/pages/settings/account_profile_page.dart';
+import 'package:insol8_mobile/pages/settings/billing/payment_history_page.dart';
+import 'package:insol8_mobile/pages/settings/billing/subscription_locked_page.dart';
 import 'package:insol8_mobile/pages/settings/password_security_page.dart';
 import 'package:insol8_mobile/pages/settings/settings_content_page.dart';
 import 'package:insol8_mobile/pages/onboarding/onboarding_page.dart';
@@ -97,9 +99,19 @@ abstract final class AppRouteRegistry {
       authRepository: authRepository,
       subscriptionRepository: subscriptionRepository,
     ),
+    AppRoutes.subscriptionLocked: (_) => SubscriptionLockedPage(
+      authRepository: authRepository,
+      subscriptionRepository: subscriptionRepository,
+    ),
+    AppRoutes.paymentHistory: (_) => PaymentHistoryPage(
+      authRepository: authRepository,
+      subscriptionRepository: subscriptionRepository,
+    ),
     AppRoutes.changePlan: (context) => OnboardingPage(
       repository: onboardingRepository,
       pricingOnly: true,
+      subscriptionRepository: subscriptionRepository,
+      branchRepository: branchRepository,
       initialPlanId: ModalRoute.of(context)?.settings.arguments as String?,
     ),
     AppRoutes.preferences: (_) => SettingsContentPage(

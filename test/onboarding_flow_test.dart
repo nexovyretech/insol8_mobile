@@ -12,14 +12,14 @@ const _plans = [
   SubscriptionPlan(
     id: 'basic',
     name: 'Basic tier',
-    price: 250,
+    price: 249.99,
     description: 'For single laundry shops.',
     features: ['Device monitoring'],
   ),
   SubscriptionPlan(
     id: 'organization',
     name: 'Organization tier',
-    price: 500,
+    price: 499.99,
     description: 'For multi-branch businesses.',
     features: ['Multiple branch registration'],
     maxBranches: null,
@@ -61,6 +61,7 @@ class _FakeRepository implements OnboardingRepository {
   Future<CheckoutSession> createCheckoutSession({
     required String planId,
     required SubscriptionPaymentMethod paymentMethod,
+    String? keepBranchId,
   }) async => CheckoutSession(
     checkoutUrl: Uri.parse('https://checkout.paymongo.test/cs_1'),
     reference: 'INSOL8-ref-1',
@@ -136,7 +137,7 @@ Future<void> _toPaymentWaiting(WidgetTester tester) async {
   await _tap(tester, 'Continue');
   await _tap(tester, 'Get Started');
   await _tap(tester, 'Get Subscription');
-  await _tap(tester, 'Pay ₱ 250.00 via GCash', toSpinner: true);
+  await _tap(tester, 'Pay ₱ 249.99 via GCash', toSpinner: true);
 }
 
 void main() {
@@ -195,7 +196,7 @@ void main() {
     final checks = repo.statusChecks;
     await _advance(tester, 5);
     expect(repo.statusChecks, checks);
-    expect(find.text('Pay ₱ 250.00 via GCash'), findsOneWidget);
+    expect(find.text('Pay ₱ 249.99 via GCash'), findsOneWidget);
   });
 
   testWidgets('Basic users connect a device without setting up a branch', (

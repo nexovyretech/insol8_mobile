@@ -31,11 +31,13 @@ class ApiOnboardingRepository implements OnboardingRepository {
   Future<CheckoutSession> createCheckoutSession({
     required String planId,
     required SubscriptionPaymentMethod paymentMethod,
+    String? keepBranchId,
   }) async {
     final session = CheckoutSession.fromJson(
       await _api.post('/billing/checkout', {
         'subscriptionPlanId': planId,
         'paymentMethod': paymentMethod.apiValue,
+        'keepBranchId': ?keepBranchId,
       }),
     );
     if (session.checkoutUrl == null || session.reference == null) {

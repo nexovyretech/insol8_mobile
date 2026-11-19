@@ -12,9 +12,11 @@ abstract interface class OnboardingRepository {
   /// Current progress, including whether the subscription has been paid.
   Future<OnboardingStatus> fetchOnboardingStatus();
 
+  /// [keepBranchId]: starting Basic with several branches, the one to keep.
   Future<CheckoutSession> createCheckoutSession({
     required String planId,
     required SubscriptionPaymentMethod paymentMethod,
+    String? keepBranchId,
   });
 
   /// Asks the backend to check checkout [reference] with the payment provider

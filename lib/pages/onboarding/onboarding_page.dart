@@ -3,6 +3,8 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import 'package:insol8_mobile/models/billing.dart';
+import 'package:insol8_mobile/models/branch_data.dart';
 import 'package:insol8_mobile/models/branch_setup_data.dart';
 import 'package:insol8_mobile/models/device_setup_data.dart';
 import 'package:insol8_mobile/models/onboarding_status.dart';
@@ -13,9 +15,13 @@ import 'package:insol8_mobile/pages/onboarding/payment_steps.dart';
 import 'package:insol8_mobile/pages/onboarding/subscription_steps.dart';
 import 'package:insol8_mobile/pages/onboarding/welcome_step.dart';
 import 'package:insol8_mobile/pages/devices/qr_scanner_page.dart';
+import 'package:insol8_mobile/pages/settings/billing/switch_to_basic_page.dart';
 import 'package:insol8_mobile/routes/app_routes.dart';
 import 'package:insol8_mobile/services/api_client.dart';
+import 'package:insol8_mobile/services/branch_repository.dart';
 import 'package:insol8_mobile/services/onboarding_repository.dart';
+import 'package:insol8_mobile/services/subscription_repository.dart';
+import 'package:insol8_mobile/utils/display_format.dart';
 
 /// Opens the payment provider's checkout page; returns false if it could not.
 typedef CheckoutOpener = Future<bool> Function(Uri checkoutUrl);
@@ -52,6 +58,8 @@ class OnboardingPage extends StatefulWidget {
     this.pricingOnly = false,
     this.initialPlanId,
     this.initialBranchName,
+    this.subscriptionRepository,
+    this.branchRepository,
     this.openCheckout = _openInBrowser,
     this.paymentPollInterval = const Duration(seconds: 4),
     this.paymentTimeout = const Duration(minutes: 15),
@@ -62,6 +70,13 @@ class OnboardingPage extends StatefulWidget {
   final bool pricingOnly;
   final String? initialPlanId;
   final String? initialBranchName;
+
+  /// Change plan (with [pricingOnly]): prices the chosen plan with the
+  /// backend (a prorated upgrade, a renewal, or a scheduled downgrade) and
+  /// lists branches when switching to Basic. Without them every plan is a
+  /// new, full-price month, as during sign-up.
+  final SubscriptionRepository? subscriptionRepository;
+  final BranchRepository? branchRepository;
   final CheckoutOpener openCheckout;
   final Duration paymentPollInterval;
   final Duration paymentTimeout;
@@ -99,6 +114,16 @@ class _OnboardingPageState extends State<OnboardingPage>
   Timer? _paymentPoll;
   DateTime? _paymentDeadline;
   bool _isCheckingPayment = false;
+
+  /// Change plan: the backend's price for the chosen plan, and the branch to
+  /// keep when starting Basic with several branches.
+  PlanQuote? _quote;
+  String? _keepBranchId;
+  bool _isQuoting = false;
+
+  /// What the checkout actually charged: the backend prices it again at
+  /// checkout, so a prorated upgrade can be a little less than the quote.
+  int? _chargedCentavos;
 
   @override
   void initState() {
@@ -247,6 +272,108 @@ class _OnboardingPageState extends State<OnboardingPage>
     return upgrade == null ? limit : '$limit Upgrade to $upgrade to add more.';
   }
 
+  bool get _changesPlan =>
+      widget.pricingOnly && widget.subscriptionRepository != null;
+
+  /// Change plan: what the chosen plan costs right now decides the next step.
+  /// A smaller plan while the current one is active is scheduled for the
+  /// period end (no payment); Basic after a lapse asks which branch to keep;
+  /// anything else goes to payment at the backend's price.
+  Future<void> _continueFromPlans() async {
+    if (!_changesPlan) {
+      _quote = null;
+      _keepBranchId = null;
+      _next();
+      return;
+    }
+    final plan = _plans[_plan];
+    setState(() => _isQuoting = true);
+    try {
+      final quote = await widget.subscriptionRepository!.fetchQuote(plan.id);
+      if (!mounted) return;
+      _quote = quote;
+      _keepBranchId = null;
+      if (quote.isDowngrade) {
+        await _switchToBasic(planId: plan.id, effectiveAt: quote.periodStart);
+        return;
+      }
+      if (quote.kind == 'new' && _isBasic(plan.id)) {
+        final branches = await _activeBranches();
+        if (!mounted) return;
+        if (branches.length > 1) {
+          final keep = await _chooseBranchToKeep(branches);
+          if (keep == null || !mounted) return;
+          _keepBranchId = keep;
+        }
+      }
+      setState(() => _page = 3);
+    } catch (error) {
+      if (mounted) {
+        _showMessage(
+          _messageFor(error, 'Could not price this plan. Please try again.'),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isQuoting = false);
+    }
+  }
+
+  static bool _isBasic(String planId) =>
+      planId == 'basic' || planId == 'monthly-basic';
+
+  Future<List<BranchData>> _activeBranches() async =>
+      await widget.branchRepository?.fetchBranches() ?? const [];
+
+  /// Organization to Basic while Organization is paid for: scheduled for the
+  /// period end, keeping one branch. Back on Billing afterwards.
+  Future<void> _switchToBasic({
+    required String planId,
+    required DateTime effectiveAt,
+  }) async {
+    final branches = await _activeBranches();
+    if (!mounted) return;
+    final kept = await Navigator.of(context).push<String>(
+      MaterialPageRoute<String>(
+        builder: (_) => SwitchToBasicPage(
+          branches: branches,
+          primaryBranchId: _status?.primaryBranchId,
+          effectiveAt: effectiveAt,
+          onConfirm: (keepBranchId) async {
+            try {
+              await widget.subscriptionRepository!.scheduleDowngrade(
+                planId: planId,
+                keepBranchId: keepBranchId,
+              );
+              return null;
+            } catch (error) {
+              return _messageFor(
+                error,
+                'Could not schedule the switch. Please try again.',
+              );
+            }
+          },
+        ),
+      ),
+    );
+    if (kept == null || !mounted) return;
+    _showMessage('Your plan switches to Basic on ${formatDate(effectiveAt)}.');
+    Navigator.of(context).pop();
+  }
+
+  /// Basic after a lapse, with several branches: which one stays. Applied
+  /// once the Basic payment goes through.
+  Future<String?> _chooseBranchToKeep(List<BranchData> branches) =>
+      Navigator.of(context).push<String>(
+        MaterialPageRoute<String>(
+          builder: (_) => SwitchToBasicPage(
+            branches: branches,
+            primaryBranchId: _status?.primaryBranchId,
+            confirmLabel: 'Continue to payment',
+            onConfirm: (_) async => null,
+          ),
+        ),
+      );
+
   void _backFromSubscription() {
     if (widget.pricingOnly) {
       Navigator.of(context).pop();
@@ -261,9 +388,11 @@ class _OnboardingPageState extends State<OnboardingPage>
       final session = await widget.repository.createCheckoutSession(
         planId: _plans[_plan].id,
         paymentMethod: _paymentMethod,
+        keepBranchId: _keepBranchId,
       );
       final reference = session.reference;
       if (reference == null) throw const FormatException('No reference');
+      _chargedCentavos = session.amountCentavos;
       final url = session.checkoutUrl;
       if (url != null && !await widget.openCheckout(url)) {
         throw const FormatException('Checkout page did not open');
@@ -587,16 +716,35 @@ class _OnboardingPageState extends State<OnboardingPage>
                   : OnboardingSubscriptionStep(
                       key: const ValueKey('subscription'),
                       plans: _plans,
+                      currentPlanId: widget.pricingOnly
+                          ? _status?.activePlanId
+                          : null,
                       selectedPlan: _plan,
                       onPlanSelected: (value) => setState(() => _plan = value),
                       onBack: _backFromSubscription,
-                      onContinue: _next,
+                      onContinue: _isQuoting ? () {} : _continueFromPlans,
                     ),
             3 => OnboardingPaymentStep(
               key: const ValueKey('payment'),
               plan: _plans[_plan],
-              nextBillingDate: (_status ?? const OnboardingStatus())
-                  .nextBillingDateFor(_plans[_plan].id),
+              // Change plan: the backend's price and dates for this change.
+              amountCentavos: _quote?.amountCentavos,
+              renewal: _quote?.kind == 'renewal',
+              note: switch (_quote) {
+                final quote? when quote.isUpgrade =>
+                  'Upgrade price: the difference for the days left until '
+                      '${formatDate(quote.periodEnd)}, when your plan '
+                      'renews at ${formatPeso(quote.fullAmountCentavos)}.',
+                final quote? when quote.kind == 'renewal' =>
+                  'Renewing early adds a month after your current plan '
+                      'ends on ${formatDate(quote.periodStart)}.',
+                _ => null,
+              },
+              nextBillingDate:
+                  _quote?.periodEnd ??
+                  (_status ?? const OnboardingStatus()).nextBillingDateFor(
+                    _plans[_plan].id,
+                  ),
               paymentMethod: _paymentMethod,
               onPaymentMethodChanged: (value) =>
                   setState(() => _paymentMethod = value),
@@ -620,6 +768,7 @@ class _OnboardingPageState extends State<OnboardingPage>
             5 => OnboardingPaymentSuccessStep(
               key: const ValueKey('payment-success'),
               plan: _activePlan,
+              amountCentavos: _chargedCentavos ?? _quote?.amountCentavos,
               reference: _status?.lastPaidReference,
               nextBillingDate: _status?.currentPeriodEnd,
               buttonLabel:

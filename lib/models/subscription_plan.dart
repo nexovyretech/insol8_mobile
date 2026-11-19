@@ -53,7 +53,11 @@ enum SubscriptionPaymentMethod {
 }
 
 class CheckoutSession {
-  const CheckoutSession({this.checkoutUrl, this.reference});
+  const CheckoutSession({
+    this.checkoutUrl,
+    this.reference,
+    this.amountCentavos,
+  });
 
   factory CheckoutSession.fromJson(Map<String, dynamic> json) {
     final url = Uri.tryParse(json['checkoutUrl'] as String? ?? '');
@@ -61,10 +65,14 @@ class CheckoutSession {
       // Only a real https page counts; a missing or relative URL is no checkout.
       checkoutUrl: url != null && url.scheme == 'https' ? url : null,
       reference: json['referenceNumber'] as String?,
+      amountCentavos: (json['amount'] as num?)?.toInt(),
     );
   }
 
   /// Set by the real payment API when it creates a provider checkout session.
   final Uri? checkoutUrl;
   final String? reference;
+
+  /// What this checkout charges, as priced by the backend at checkout time.
+  final int? amountCentavos;
 }

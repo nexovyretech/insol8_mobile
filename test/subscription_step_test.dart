@@ -7,14 +7,14 @@ const _plans = [
   SubscriptionPlan(
     id: 'basic',
     name: 'Basic tier',
-    price: 250,
+    price: 249.99,
     description: 'For a single shop',
     features: ['One branch'],
   ),
   SubscriptionPlan(
     id: 'organization',
     name: 'Organization tier',
-    price: 500,
+    price: 499.99,
     description: 'For growing businesses',
     features: ['Multiple branches'],
   ),

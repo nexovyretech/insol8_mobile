@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import 'package:insol8_mobile/models/billing.dart';
 import 'package:insol8_mobile/models/dashboard_data.dart';
 import 'package:insol8_mobile/models/device_data.dart';
 import 'package:insol8_mobile/models/device_management_data.dart';
@@ -16,6 +17,7 @@ import 'package:insol8_mobile/services/onboarding_repository.dart';
 import 'package:insol8_mobile/services/subscription_repository.dart';
 import 'package:insol8_mobile/theme/app_colors.dart';
 import 'package:insol8_mobile/theme/app_spacing.dart';
+import 'package:insol8_mobile/utils/display_format.dart';
 
 /// Signed-in landing screen; dashboard metrics are loaded through a repository
 /// so the UI does not depend on a particular API response or transport.
@@ -46,6 +48,9 @@ class _HomePageState extends State<HomePage> {
   bool _isLoading = true;
   bool _organizationPlan = true;
 
+  /// Shown as a reminder during the 5-day grace period.
+  SubscriptionDetails? _subscription;
+
   @override
   void initState() {
     super.initState();
@@ -63,12 +68,21 @@ class _HomePageState extends State<HomePage> {
     }
     try {
       final profile = await widget.authRepository.loadProfile();
-      final planId = await widget.subscriptionRepository.fetchActivePlanId();
+      final subscription = await widget.subscriptionRepository
+          .fetchSubscription();
+      // No access (never paid, or the plan ended past its grace period): the
+      // dashboard stays locked and the account goes to pay.
+      if (!subscription.hasAccess) {
+        _leaveForSubscription(subscription);
+        return;
+      }
       final dashboard = await widget.dashboardRepository.fetchDashboard();
       if (!mounted) return;
       setState(() {
         _profile = profile;
-        _organizationPlan = planId == SubscriptionPlanIds.organization;
+        _subscription = subscription;
+        _organizationPlan =
+            subscription.plan?.id == SubscriptionPlanIds.organization;
         _dashboard = dashboard;
         _isLoading = false;
       });
@@ -85,6 +99,14 @@ class _HomePageState extends State<HomePage> {
       _errorMessage = message;
       _isLoading = false;
     });
+  }
+
+  void _leaveForSubscription(SubscriptionDetails subscription) {
+    if (!mounted) return;
+    Navigator.of(context).pushNamedAndRemoveUntil(
+      subscription.isNew ? AppRoutes.onboarding : AppRoutes.subscriptionLocked,
+      (_) => false,
+    );
   }
 
   void _leave() {
@@ -213,6 +235,15 @@ class _HomePageState extends State<HomePage> {
                           child: ListView(
                             padding: const EdgeInsets.only(bottom: 20),
                             children: [
+                              if (_subscription case final subscription?
+                                  when subscription.isInGracePeriod) ...[
+                                _RenewalReminder(
+                                  renewBy: subscription.graceEndsAt,
+                                  onTap: () => Navigator.of(context)
+                                      .pushNamed(AppRoutes.billingInformation),
+                                ),
+                                const SizedBox(height: 16),
+                              ],
                               DashboardMetricGrid(data: dashboard),
                               const SizedBox(height: 24),
                               const DashboardSectionTitle('Needs Attention'),
@@ -267,6 +298,56 @@ class _DashboardError extends StatelessWidget {
         const SizedBox(height: 12),
         TextButton(onPressed: onRetry, child: const Text('Try again')),
       ],
+    ),
+  );
+}
+
+/// During the grace period: the plan has ended but access continues until
+/// [renewBy]; tapping opens Billing Information.
+class _RenewalReminder extends StatelessWidget {
+  const _RenewalReminder({required this.renewBy, required this.onTap});
+
+  final DateTime? renewBy;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) => Material(
+    color: AppColors.dashboardCard,
+    borderRadius: BorderRadius.circular(16),
+    child: InkWell(
+      borderRadius: BorderRadius.circular(16),
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: AppColors.dashboardBorder),
+        ),
+        child: Row(
+          children: [
+            const Icon(Icons.schedule_rounded, color: AppColors.primary),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                renewBy == null
+                    ? 'Your plan has ended. Renew to keep your access.'
+                    : 'Your plan has ended. Renew by ${formatDate(renewBy!)} '
+                          'to keep your access.',
+                style: const TextStyle(
+                  color: AppColors.ink,
+                  fontSize: 13,
+                  height: 1.35,
+                ),
+              ),
+            ),
+            const Icon(
+              Icons.chevron_right,
+              color: AppColors.sectionLabel,
+              size: 18,
+            ),
+          ],
+        ),
+      ),
     ),
   );
 }
