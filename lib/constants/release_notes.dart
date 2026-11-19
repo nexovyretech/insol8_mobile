@@ -12,6 +12,7 @@ class ReleaseNote {
 
 /// Newest first.
 const releaseNotes = <ReleaseNote>[
+  ReleaseNote('0.7.1', ['What’s new now shows the changes from 0.7.0.']),
   ReleaseNote('0.7.0', [
     'Account Profile: edit your name and username, and add or change your email and mobile number.',
     'Password & Security: connect Google, create a password for Google sign-ups, or update your password.',
