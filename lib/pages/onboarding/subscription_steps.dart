@@ -11,6 +11,15 @@ import 'package:insol8_mobile/widgets/app_page_header.dart';
 
 import 'package:insol8_mobile/pages/onboarding/onboarding_shared_widgets.dart';
 
+/// Muted label colour used above the feature comparison in the design.
+const _comparisonLabelColor = Color(0xFF9E8D81);
+
+/// Near-black used for the comparison column headers and feature titles.
+const _comparisonInkColor = Color(0xFF1A1613);
+
+/// Warm grey used for the feature descriptions and billing note.
+const _comparisonBodyColor = Color(0xFF4A4541);
+
 class OnboardingSubscriptionStep extends StatelessWidget {
   const OnboardingSubscriptionStep({
     super.key,
@@ -58,8 +67,8 @@ class OnboardingSubscriptionStep extends StatelessWidget {
             style: Theme.of(context).textTheme.bodySmall
                 ?.copyWith(color: AppColors.body, fontSize: 13, height: 1.3),
           ),
-          const SizedBox(height: 22),
-          const _FeaturesCard(),
+          const SizedBox(height: 16),
+          const _FeatureComparison(),
           const SizedBox(height: 16),
           _PlanSelectionCard(
             plans: plans,
@@ -69,10 +78,10 @@ class OnboardingSubscriptionStep extends StatelessWidget {
           ),
           const SizedBox(height: 12),
           Text(
-            'Each payment covers one month and does not renew on its own. Renew, change, or cancel your plan anytime in Billing Information.',
+            'Auto-renews unless canceled at least 24 hours before your billing cycle ends. Cancel anytime in Account Settings.',
             textAlign: TextAlign.center,
             style: Theme.of(context).textTheme.bodySmall?.copyWith(
-              color: AppColors.fieldHint,
+              color: _comparisonLabelColor,
               fontSize: 12,
               height: 1.3,
             ),
@@ -210,31 +219,42 @@ class OnboardingSubscriptionPlanLoading extends StatelessWidget {
   }
 }
 
-class _FeaturesCard extends StatelessWidget {
-  const _FeaturesCard();
+/// The Figma screen is a comparison: BASIC includes the first four features,
+/// ORG includes all six. Both columns are shown at the same time.
+class _FeatureComparison extends StatelessWidget {
+  const _FeatureComparison();
 
+  static const _columnWidth = 44.0;
+
+  // title, description, included in Basic
   static const _features = [
-    (
-      'Multiple Device Registration',
-      'Connect and pair all your drying units',
-      Icons.hub_outlined,
-    ),
+    ('Multiple Device Registration', 'Register up to 5 drying devices', true),
     (
       'Device Monitoring',
       'Real-time status, temps, and battery tracking',
-      Icons.monitor_heart_outlined,
+      true,
     ),
-    (
-      'Energy Analytics',
-      'Measure solar heat efficiency and power usage',
-      Icons.bolt_outlined,
-    ),
+    ('Energy Analytics', 'Measure solar heat efficiency and power usage', true),
     (
       'Profit Analytics',
       'Track operating costs, runs, and revenue trends',
-      Icons.trending_up,
+      true,
     ),
+    ('Multi-Branch Management', 'Manage branches and assign devices', false),
+    ('Manager Access', 'Assign managers and manage access', false),
   ];
+
+  static const _check = Icon(
+    Icons.check_circle,
+    color: Color(0xFFD87040),
+    size: 18,
+  );
+
+  static const _notIncluded = Icon(
+    Icons.cancel,
+    color: Color(0xFFE8B090),
+    size: 18,
+  );
 
   @override
   Widget build(BuildContext context) {
@@ -242,12 +262,53 @@ class _FeaturesCard extends StatelessWidget {
       padding: const EdgeInsets.all(16),
       decoration: onboardingCardDecoration(),
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  'Choose the right plan for you',
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: _comparisonLabelColor,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+              const SizedBox(
+                width: _columnWidth,
+                child: Center(
+                  child: Text(
+                    'BASIC',
+                    style: TextStyle(
+                      color: _comparisonInkColor,
+                      fontSize: 10,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(
+                width: _columnWidth,
+                child: Center(
+                  child: Text(
+                    'ORG',
+                    style: TextStyle(
+                      color: _comparisonInkColor,
+                      fontSize: 10,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
           for (var i = 0; i < _features.length; i++) ...[
             Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Icon(_features[i].$3, size: 17, color: AppColors.ink),
-                const SizedBox(width: 8),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -255,27 +316,30 @@ class _FeaturesCard extends StatelessWidget {
                       Text(
                         _features[i].$1,
                         style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: AppColors.ink,
+                          color: _comparisonInkColor,
                           fontWeight: FontWeight.w700,
-                          fontSize: 13,
+                          fontSize: 14,
                         ),
                       ),
                       Text(
                         _features[i].$2,
-                        style: Theme.of(context).textTheme.bodySmall
-                            ?.copyWith(fontSize: 12, height: 1.35),
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: _comparisonBodyColor,
+                          fontSize: 12,
+                          height: 1.35,
+                        ),
                       ),
                     ],
                   ),
                 ),
-                const Icon(
-                  Icons.check_circle,
-                  color: AppColors.primary,
-                  size: 17,
+                SizedBox(
+                  width: _columnWidth,
+                  child: _features[i].$3 ? _check : _notIncluded,
                 ),
+                const SizedBox(width: _columnWidth, child: _check),
               ],
             ),
-            if (i != _features.length - 1) const SizedBox(height: 14),
+            if (i != _features.length - 1) const SizedBox(height: 12),
           ],
         ],
       ),
@@ -336,7 +400,8 @@ class _PlanOption extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final foreground = selected ? Colors.white : AppColors.primary;
+    final foreground = selected ? Colors.white : const Color(0xFFEEB48E);
+    final priceForeground = selected ? Colors.white : const Color(0xFFD87040);
     return Material(
       color: selected ? AppColors.primaryDark : const Color(0xFFFFF7F2),
       shape: RoundedRectangleBorder(
@@ -379,19 +444,26 @@ class _PlanOption extends StatelessWidget {
                 const SizedBox(height: 6),
               ],
               Text(
-                plan.name,
+                plan.displayTitle,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                style: TextStyle(color: foreground, fontSize: 14),
+                style: TextStyle(color: foreground, fontSize: 12),
               ),
               const SizedBox(height: 4),
               Text(
-                '₱ ${plan.price.toStringAsFixed(2)}',
+                '₱ ${plan.advertisedPrice.toStringAsFixed(2)}',
                 maxLines: 1,
                 style: TextStyle(
-                  color: foreground,
-                  fontSize: 18,
+                  color: priceForeground,
+                  fontSize: 22,
                   fontWeight: FontWeight.w700,
+                ),
+              ),
+              Text(
+                '/ month',
+                style: TextStyle(
+                  color: foreground.withValues(alpha: selected ? 0.9 : 0.7),
+                  fontSize: 10,
                 ),
               ),
               Text(

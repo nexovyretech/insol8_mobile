@@ -1,13 +1,12 @@
 import 'package:flutter/material.dart';
 
 import 'package:insol8_mobile/models/branch_setup_data.dart';
-import 'package:insol8_mobile/theme/app_colors.dart';
+import 'package:insol8_mobile/models/manager_account_data.dart';
+import 'package:insol8_mobile/pages/onboarding/branch_setup_style.dart';
+import 'package:insol8_mobile/pages/onboarding/branch_setup_text_field.dart';
+import 'package:insol8_mobile/pages/onboarding/onboarding_shared_widgets.dart';
 import 'package:insol8_mobile/theme/app_spacing.dart';
 import 'package:insol8_mobile/widgets/app_page_header.dart';
-
-import 'package:insol8_mobile/pages/onboarding/onboarding_shared_widgets.dart';
-import 'package:insol8_mobile/utils/profile_rules.dart';
-import 'package:insol8_mobile/widgets/error_banner.dart';
 
 class OnboardingBranchSetupStep extends StatelessWidget {
   const OnboardingBranchSetupStep({
@@ -16,15 +15,13 @@ class OnboardingBranchSetupStep extends StatelessWidget {
     required this.formKey,
     required this.branchNameController,
     required this.branchAddressController,
-    required this.managerFirstNameController,
-    required this.managerLastNameController,
     required this.managerOption,
     required this.isSaving,
     required this.onManagerOptionChanged,
     required this.onFieldChanged,
-    required this.onSkip,
+    required this.onAddManager,
     required this.onFinish,
-    this.showSkip = true,
+    this.managerAccount,
     this.heading = 'Name your first branch',
     this.finishLabel = 'Finish Setup',
     this.canAssignManagers = true,
@@ -34,15 +31,18 @@ class OnboardingBranchSetupStep extends StatelessWidget {
   final GlobalKey<FormState> formKey;
   final TextEditingController branchNameController;
   final TextEditingController branchAddressController;
-  final TextEditingController managerFirstNameController;
-  final TextEditingController managerLastNameController;
   final BranchManagerOption? managerOption;
   final bool isSaving;
   final ValueChanged<BranchManagerOption> onManagerOptionChanged;
   final VoidCallback onFieldChanged;
-  final VoidCallback onSkip;
+
+  /// Opens the "Create manager account" screen.
+  final VoidCallback onAddManager;
+
+  /// Set once the manager's account details have been entered. Finish stays
+  /// disabled until this exists when "Add a new manager" is selected.
+  final ManagerAccountData? managerAccount;
   final VoidCallback onFinish;
-  final bool showSkip;
   final String heading;
   final String finishLabel;
 
@@ -51,17 +51,11 @@ class OnboardingBranchSetupStep extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Finish stays greyed out until every field is valid; manager names
-    // follow the same letters-only rule as sign-up.
     final canFinish =
         branchNameController.text.trim().isNotEmpty &&
         branchAddressController.text.trim().isNotEmpty &&
         managerOption != null &&
-        (managerOption == BranchManagerOption.myself ||
-            (nameProblem(managerFirstNameController.text, 'first name') ==
-                    null &&
-                nameProblem(managerLastNameController.text, 'last name') ==
-                    null));
+        (managerOption == BranchManagerOption.myself || managerAccount != null);
 
     return OnboardingScaffold(
       showBack: false,
@@ -77,19 +71,8 @@ class OnboardingBranchSetupStep extends StatelessWidget {
         header: AppInnerPageHeader(
           title: 'Branch Setup',
           onBack: onBack,
-          leadingIcon: Icons.arrow_back_ios_new,
-          trailing: showSkip
-              ? TextButton(
-                  onPressed: onSkip,
-                  style: TextButton.styleFrom(
-                    minimumSize: Size.zero,
-                    padding: EdgeInsets.zero,
-                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                    foregroundColor: AppColors.ink,
-                  ),
-                  child: const Text('Skip'),
-                )
-              : null,
+          titleColor: BranchSetupPalette.ink,
+          iconColor: BranchSetupPalette.ink,
         ),
         content: [
           const SizedBox(height: 8),
@@ -101,26 +84,34 @@ class OnboardingBranchSetupStep extends StatelessWidget {
                 Text(
                   heading,
                   textAlign: TextAlign.center,
-                  style: Theme.of(context).textTheme.titleLarge
-                      ?.copyWith(fontSize: 22, height: 1.2),
+                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                    color: BranchSetupPalette.ink,
+                    fontSize: 22,
+                    height: 1.2,
+                    fontWeight: FontWeight.w700,
+                  ),
                 ),
                 const SizedBox(height: 12),
                 Text(
-                  'Set your primary laundry shop location so you can assign managers and link your inSOL8 dryers.',
+                  'Set up your primary laundry shop location so you can assign '
+                  'managers and link your InSOL8 dryers.',
                   textAlign: TextAlign.center,
                   style: Theme.of(context).textTheme.bodySmall
-                      ?.copyWith(fontSize: 12, color: AppColors.body),
+                      ?.copyWith(color: BranchSetupPalette.body, fontSize: 12),
                 ),
                 const SizedBox(height: 22),
-                const OnboardingSectionLabel('Branch Details'),
+                const OnboardingSectionLabel(
+                  'Branch Details',
+                  color: BranchSetupPalette.sectionLabel,
+                ),
                 const SizedBox(height: 12),
-                _BranchTextField(
+                BranchSetupTextField(
                   controller: branchNameController,
                   hint: 'Branch name',
                   onChanged: onFieldChanged,
                 ),
                 const SizedBox(height: 12),
-                _BranchTextField(
+                BranchSetupTextField(
                   controller: branchAddressController,
                   hint: 'Store address',
                   capitalization: TextCapitalization.words,
@@ -128,17 +119,21 @@ class OnboardingBranchSetupStep extends StatelessWidget {
                 ),
                 const SizedBox(height: 12),
                 Text(
-                  'A branch represents a physical shop location. It helps you group drying units, view store-level analytics, and assign on-site managers.',
+                  'A branch represents a physical shop location. It helps you '
+                  'group drying units, view store-level analytics, and assign '
+                  'on-site managers.',
                   textAlign: TextAlign.center,
                   style: Theme.of(context).textTheme.bodySmall
-                      ?.copyWith(fontSize: 12, color: AppColors.fieldHint),
+                      ?.copyWith(color: BranchSetupPalette.body, fontSize: 12),
                 ),
                 const SizedBox(height: 20),
-                const OnboardingSectionLabel('Store Manager'),
+                const OnboardingSectionLabel(
+                  'Store Manager',
+                  color: BranchSetupPalette.sectionLabel,
+                ),
                 const SizedBox(height: 12),
                 _ManagerOptionTile(
                   title: 'Assign myself as manager',
-                  value: BranchManagerOption.myself,
                   selected: managerOption == BranchManagerOption.myself,
                   onTap: () =>
                       onManagerOptionChanged(BranchManagerOption.myself),
@@ -146,7 +141,6 @@ class OnboardingBranchSetupStep extends StatelessWidget {
                 const SizedBox(height: 10),
                 _ManagerOptionTile(
                   title: 'Add a new manager',
-                  value: BranchManagerOption.newManager,
                   selected: managerOption == BranchManagerOption.newManager,
                   onTap: canAssignManagers
                       ? () => onManagerOptionChanged(
@@ -157,45 +151,42 @@ class OnboardingBranchSetupStep extends StatelessWidget {
                 if (!canAssignManagers) ...[
                   const SizedBox(height: 6),
                   Text(
-                    'Assigning a separate manager is available on the Organization plan.',
+                    'Assigning a separate manager is available on the '
+                    'Organization plan.',
                     textAlign: TextAlign.center,
-                    style: Theme.of(context).textTheme.bodySmall
-                        ?.copyWith(fontSize: 12, color: AppColors.fieldHint),
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: BranchSetupPalette.body,
+                      fontSize: 12,
+                    ),
                   ),
                 ],
                 const SizedBox(height: 12),
                 Text(
-                  'Managers can start cycles, monitor chamber temperatures, and report branch issues.',
+                  'Managers can start cycles, monitor chamber temperatures, '
+                  'and report branch issues.',
                   textAlign: TextAlign.center,
                   style: Theme.of(context).textTheme.bodySmall
-                      ?.copyWith(fontSize: 12, color: AppColors.fieldHint),
+                      ?.copyWith(color: BranchSetupPalette.body, fontSize: 12),
                 ),
                 if (managerOption == BranchManagerOption.newManager) ...[
                   const SizedBox(height: 14),
-                  const OnboardingSectionLabel('Assign Manager'),
+                  const OnboardingSectionLabel(
+                    'Assign Manager',
+                    color: BranchSetupPalette.sectionLabel,
+                  ),
                   const SizedBox(height: 10),
-                  _BranchTextField(
-                    controller: managerFirstNameController,
-                    hint: 'First name',
-                    capitalization: TextCapitalization.words,
-                    onChanged: onFieldChanged,
-                    validator: (value) => nameProblem(value, 'first name'),
-                  ),
-                  const SizedBox(height: 12),
-                  _BranchTextField(
-                    controller: managerLastNameController,
-                    hint: 'Last name',
-                    capitalization: TextCapitalization.words,
-                    onChanged: onFieldChanged,
-                    validator: (value) => nameProblem(value, 'last name'),
-                  ),
+                  if (managerAccount == null)
+                    _AddManagerButton(onTap: onAddManager)
+                  else
+                    _ManagerAccountCard(account: managerAccount!),
                 ],
                 const SizedBox(height: 16),
                 Text(
-                  'You can add more branches, change addresses, or reassign store managers anytime in your Account Settings.',
+                  'You can add more branches, change addresses, or reassign '
+                  'store managers anytime in your Account Settings.',
                   textAlign: TextAlign.center,
                   style: Theme.of(context).textTheme.bodySmall
-                      ?.copyWith(fontSize: 12, color: AppColors.fieldHint),
+                      ?.copyWith(color: BranchSetupPalette.body, fontSize: 12),
                 ),
                 const SizedBox(height: 8),
               ],
@@ -206,6 +197,11 @@ class OnboardingBranchSetupStep extends StatelessWidget {
           OnboardingGradientButton(
             label: isSaving ? 'Saving…' : finishLabel,
             onPressed: canFinish && !isSaving ? onFinish : null,
+            gradientColors: const [
+              BranchSetupPalette.orange,
+              BranchSetupPalette.orange,
+            ],
+            disabledColor: BranchSetupPalette.disabled,
           ),
           const SizedBox(height: 4),
         ],
@@ -214,60 +210,14 @@ class OnboardingBranchSetupStep extends StatelessWidget {
   }
 }
 
-class _BranchTextField extends StatelessWidget {
-  const _BranchTextField({
-    required this.controller,
-    required this.hint,
-    required this.onChanged,
-    this.capitalization = TextCapitalization.none,
-    this.validator,
-  });
-
-  final TextEditingController controller;
-  final String hint;
-  final VoidCallback onChanged;
-  final TextCapitalization capitalization;
-
-  /// Defaults to "required"; errors show live in the error banner.
-  final String? Function(String value)? validator;
-
-  String? _validate(String? value) =>
-      validator?.call(value ?? '') ??
-      ((value ?? '').trim().isEmpty ? 'This field is required.' : null);
-
-  @override
-  Widget build(BuildContext context) => FieldWithErrorBanner(
-    controller: controller,
-    validator: _validate,
-    builder: (context, validate) => TextFormField(
-      controller: controller,
-      textCapitalization: capitalization,
-      onChanged: (_) => onChanged(),
-      validator: validate,
-      autovalidateMode: AutovalidateMode.onUserInteraction,
-      style: Theme.of(context).textTheme.bodySmall?.copyWith(fontSize: 14),
-      decoration: InputDecoration(
-        hintText: hint,
-        errorStyle: FieldWithErrorBanner.hiddenErrorStyle,
-        contentPadding: const EdgeInsets.symmetric(
-          horizontal: 15,
-          vertical: 14,
-        ),
-      ),
-    ),
-  );
-}
-
 class _ManagerOptionTile extends StatelessWidget {
   const _ManagerOptionTile({
     required this.title,
-    required this.value,
     required this.selected,
     required this.onTap,
   });
 
   final String title;
-  final BranchManagerOption value;
   final bool selected;
 
   /// Null disables the option.
@@ -278,7 +228,9 @@ class _ManagerOptionTile extends StatelessWidget {
     return Opacity(
       opacity: onTap != null ? 1 : 0.45,
       child: Material(
-        color: selected ? const Color(0xFFFFF5EF) : Colors.transparent,
+        color: selected
+            ? BranchSetupPalette.field
+            : BranchSetupPalette.background,
         borderRadius: BorderRadius.circular(12),
         child: InkWell(
           onTap: onTap,
@@ -291,7 +243,9 @@ class _ManagerOptionTile extends StatelessWidget {
                   child: Text(
                     title,
                     style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: selected ? AppColors.primary : AppColors.body,
+                      color: selected
+                          ? BranchSetupPalette.orange
+                          : BranchSetupPalette.ink,
                       fontSize: 12,
                     ),
                   ),
@@ -300,7 +254,7 @@ class _ManagerOptionTile extends StatelessWidget {
                   selected
                       ? Icons.radio_button_checked
                       : Icons.radio_button_unchecked,
-                  color: AppColors.primary,
+                  color: BranchSetupPalette.orange,
                   size: 18,
                 ),
               ],
@@ -310,4 +264,80 @@ class _ManagerOptionTile extends StatelessWidget {
       ),
     );
   }
+}
+
+/// Secondary action under "Assign Manager". The screenshot uses a chevron
+/// button here, not the radio options used under "Store Manager".
+class _AddManagerButton extends StatelessWidget {
+  const _AddManagerButton({required this.onTap});
+
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: BranchSetupPalette.field,
+      borderRadius: BorderRadius.circular(12),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(12),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+          child: Row(
+            children: [
+              Expanded(
+                child: Text(
+                  'Add a new manager',
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: BranchSetupPalette.orange,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+              const Icon(
+                Icons.chevron_right,
+                color: BranchSetupPalette.orange,
+                size: 18,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _ManagerAccountCard extends StatelessWidget {
+  const _ManagerAccountCard({required this.account});
+
+  final ManagerAccountData account;
+
+  @override
+  Widget build(BuildContext context) => Container(
+    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+    decoration: BoxDecoration(
+      color: BranchSetupPalette.field,
+      borderRadius: BorderRadius.circular(12),
+    ),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          account.fullName,
+          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+            color: BranchSetupPalette.orange,
+            fontSize: 12,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          account.displayContact,
+          style: Theme.of(context).textTheme.bodySmall
+              ?.copyWith(color: BranchSetupPalette.body, fontSize: 12),
+        ),
+      ],
+    ),
+  );
 }

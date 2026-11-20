@@ -50,6 +50,37 @@ Future<bool> _pumpAt(WidgetTester tester, Size size) async {
 }
 
 void main() {
+  testWidgets('shows the Basic/Org comparison and Figma prices', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(360, 740);
+    addTearDown(tester.view.reset);
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: OnboardingSubscriptionStep(
+            plans: _plans,
+            selectedPlan: 0,
+            onPlanSelected: (_) {},
+            onBack: () {},
+            onContinue: () {},
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('BASIC'), findsOneWidget);
+    expect(find.text('ORG'), findsOneWidget);
+    // Basic has 4 checks + 2 X marks; Org has 6 checks.
+    expect(find.byIcon(Icons.check_circle), findsNWidgets(10));
+    expect(find.byIcon(Icons.cancel), findsNWidgets(2));
+    expect(find.text('₱ 299.00'), findsOneWidget);
+    expect(find.text('₱ 499.00'), findsOneWidget);
+    expect(find.text('/ month'), findsNWidgets(2));
+  });
+
   testWidgets('Get Subscription does not overflow on a small phone', (
     tester,
   ) async {

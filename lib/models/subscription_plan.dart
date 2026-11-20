@@ -40,6 +40,53 @@ class SubscriptionPlan {
   final bool canAssignManagers;
 }
 
+/// The wording shown on the onboarding screens. These are display values:
+/// checkout still uses the amount returned by the backend.
+extension SubscriptionPlanPresentation on SubscriptionPlan {
+  String get displayTitle => switch (id) {
+    'basic' => 'MONTHLY BASIC',
+    'organization' => 'MONTHLY ORG',
+    _ => name.toUpperCase(),
+  };
+
+  String get displayTierName => switch (id) {
+    'basic' => 'Basic',
+    'organization' => 'Organization',
+    _ => name,
+  };
+
+  double get advertisedPrice => switch (id) {
+    'basic' => 299,
+    'organization' => 499,
+    _ => price,
+  };
+
+  /// Amount shown on the "Pay ... via ..." button in the Figma design.
+  double get advertisedCheckoutAmount => switch (id) {
+    'basic' => 200,
+    'organization' => 500,
+    _ => price,
+  };
+
+  /// The exact "Features included:" lines from the design.
+  List<String> get summaryFeatures => switch (id) {
+    'basic' => const [
+      'Up to 5 device registration',
+      'Device Monitoring',
+      'Energy Analytics',
+      'Profit Analytics',
+    ],
+    'organization' => const [
+      'Up to 5 device registration',
+      'Up to 2 branch registration',
+      'Device Monitoring',
+      'Energy Analytics',
+      'Profit Analytics',
+    ],
+    _ => features,
+  };
+}
+
 enum SubscriptionPaymentMethod {
   gcash('GCash', 'gcash'),
   maya('Maya', 'maya');

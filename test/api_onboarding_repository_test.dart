@@ -141,7 +141,7 @@ void main() {
     expect(status.currentPeriodEnd, DateTime.utc(2026, 11, 28));
   });
 
-  test('creates a branch and returns its id', () async {
+  test('creates a branch with only backend-supported manager fields', () async {
     final (repo, calls) = _repository(
       (_) => {'branchId': '6f1c2d3e-4a5b-4c6d-8e9f-0a1b2c3d4e5f'},
     );
@@ -152,9 +152,32 @@ void main() {
         managerOption: BranchManagerOption.newManager,
         managerFirstName: 'Ana',
         managerLastName: 'Cruz',
+        managerEmail: 'AnaCruz@gmail.com',
       ),
     );
     expect(id, '6f1c2d3e-4a5b-4c6d-8e9f-0a1b2c3d4e5f');
+    expect(calls.single.path, '/branches');
+    expect(calls.single.body, {
+      'name': 'Main Branch',
+      'storeAddress': '12 Rizal St',
+      'managerOption': 'newManager',
+      'managerFirstName': 'Ana',
+      'managerLastName': 'Cruz',
+    });
+  });
+
+  test('omits manager contact fields the backend does not accept', () async {
+    final (repo, calls) = _repository((_) => {'branchId': 'b'});
+    await repo.createBranch(
+      const BranchSetupData(
+        name: 'Main Branch',
+        address: '12 Rizal St',
+        managerOption: BranchManagerOption.newManager,
+        managerFirstName: 'Ana',
+        managerLastName: 'Cruz',
+        managerMobileNumber: '+639123456789',
+      ),
+    );
     expect(calls.single.path, '/branches');
     expect(calls.single.body, {
       'name': 'Main Branch',

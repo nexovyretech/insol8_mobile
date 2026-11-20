@@ -55,6 +55,8 @@ class AppInnerPageHeader extends StatelessWidget {
     this.leadingIcon = Icons.chevron_left,
     this.leadingTooltip = 'Back',
     this.titleFontSize = 18,
+    this.titleColor,
+    this.iconColor,
   });
 
   final String title;
@@ -63,6 +65,8 @@ class AppInnerPageHeader extends StatelessWidget {
   final IconData leadingIcon;
   final String leadingTooltip;
   final double titleFontSize;
+  final Color? titleColor;
+  final Color? iconColor;
 
   @override
   Widget build(BuildContext context) => SizedBox(
@@ -81,7 +85,11 @@ class AppInnerPageHeader extends StatelessWidget {
                 width: AppSpacing.pageHeaderSlotWidth,
                 height: AppSpacing.pageHeaderHeight,
               ),
-              icon: Icon(leadingIcon, size: 24, color: AppColors.ink),
+              icon: Icon(
+                leadingIcon,
+                size: 24,
+                color: iconColor ?? AppColors.ink,
+              ),
             ),
           ),
         ),
@@ -92,7 +100,7 @@ class AppInnerPageHeader extends StatelessWidget {
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
             style: Theme.of(context).textTheme.titleMedium?.copyWith(
-              color: AppColors.ink,
+              color: titleColor ?? AppColors.ink,
               fontSize: titleFontSize,
               height: 1.2,
               fontWeight: FontWeight.w700,
