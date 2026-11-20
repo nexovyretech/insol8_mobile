@@ -7,8 +7,8 @@ import 'package:insol8_mobile/models/device_data.dart';
 import 'package:insol8_mobile/models/device_management_data.dart';
 import 'package:insol8_mobile/models/user_profile.dart';
 import 'package:insol8_mobile/pages/home/dashboard_widgets.dart';
+import 'package:insol8_mobile/pages/devices/bulk_cycle_control_sheet.dart';
 import 'package:insol8_mobile/pages/devices/device_management_page.dart';
-import 'package:insol8_mobile/pages/onboarding/onboarding_page.dart';
 import 'package:insol8_mobile/routes/app_routes.dart';
 import 'package:insol8_mobile/services/auth_repository.dart';
 import 'package:insol8_mobile/services/dashboard_repository.dart';
@@ -121,6 +121,33 @@ class _HomePageState extends State<HomePage> {
       ..showSnackBar(SnackBar(content: Text(message)));
   }
 
+  Future<void> _openNewDryingJob() async {
+    try {
+      final devices = await widget.deviceRepository.fetchDevices();
+      if (!mounted) return;
+      final result = await showBulkCycleControlSheet(
+        context: context,
+        devices: devices,
+        repository: widget.deviceRepository,
+      );
+      if (!mounted || result == null) return;
+      await _load(showLoading: false);
+      if (!mounted) return;
+      final message = [
+        if (result.started > 0)
+          '${result.started} job${result.started == 1 ? '' : 's'} started',
+        if (result.stopped > 0)
+          '${result.stopped} job${result.stopped == 1 ? '' : 's'} stopped',
+        if (result.failed > 0) '${result.failed} failed',
+      ].join(' · ');
+      _showMessage(message.isEmpty ? 'No drying jobs were changed.' : message);
+    } on Exception {
+      if (mounted) {
+        _showMessage('Could not load your dryers. Try again.');
+      }
+    }
+  }
+
   Future<void> _openAttentionDevice(DashboardAttentionItem item) async {
     try {
       final devices = await widget.deviceRepository.fetchDevices();
@@ -151,22 +178,6 @@ class _HomePageState extends State<HomePage> {
       if (mounted) {
         _showMessage('Could not open ${item.deviceName}. Try again.');
       }
-    }
-  }
-
-  Future<void> _addDevice() async {
-    final setups = await openDeviceRegistrationFlow(
-      context,
-      repository: widget.onboardingRepository,
-    );
-    if (!mounted || setups == null || setups.isEmpty) return;
-    await _load(showLoading: false);
-    if (mounted) {
-      _showMessage(
-        setups.length == 1
-            ? 'Device added successfully.'
-            : '${setups.length} devices added successfully.',
-      );
     }
   }
 
@@ -244,21 +255,37 @@ class _HomePageState extends State<HomePage> {
                                 ),
                                 const SizedBox(height: 16),
                               ],
-                              DashboardMetricGrid(data: dashboard),
-                              const SizedBox(height: 24),
+                              DashboardMetricGrid(
+                                data: dashboard,
+                                organizationPlan: _organizationPlan,
+                              ),
+                              const SizedBox(height: 20),
+                              const DashboardSectionTitle('Add a Job'),
+                              DashboardQuickActions(
+                                onAddJob: _openNewDryingJob,
+                              ),
+                              const SizedBox(height: 20),
                               const DashboardSectionTitle('Needs Attention'),
                               DashboardAttentionList(
                                 items: dashboard.attentionItems,
                                 onTapItem: _openAttentionDevice,
                               ),
-                              const SizedBox(height: 22),
-                              const DashboardSectionTitle('Quick Buttons'),
-                              DashboardQuickActions(
-                                onAddDevice: _addDevice,
-                                onReportIssue: () => _showMessage(
-                                  'Issue reporting will be connected to the support service.',
+                              const SizedBox(height: 20),
+                              if (_organizationPlan) ...[
+                                const DashboardSectionTitle(
+                                  'First Recorded Job Today',
                                 ),
-                              ),
+                                DashboardBranchList(
+                                  branches: dashboard.branchActivity,
+                                ),
+                              ] else ...[
+                                const DashboardSectionTitle(
+                                  'Current Drying Jobs',
+                                ),
+                                DashboardDryingJobList(
+                                  jobs: dashboard.dryingJobs,
+                                ),
+                              ],
                             ],
                           ),
                         ),
