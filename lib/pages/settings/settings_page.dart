@@ -33,6 +33,7 @@ class SettingsPage extends StatefulWidget {
 class _SettingsPageState extends State<SettingsPage> {
   UserProfile? _profile;
   bool _organizationPlan = false;
+  bool _isManager = false;
   bool _loading = true;
 
   @override
@@ -49,6 +50,8 @@ class _SettingsPageState extends State<SettingsPage> {
       setState(() {
         _profile = profile;
         _organizationPlan = plan == SubscriptionPlanIds.organization;
+        // A manager's rows are independent of the account's plan tier.
+        _isManager = profile.role == AccountRole.manager;
         _loading = false;
       });
     } on Exception {
@@ -188,18 +191,40 @@ class _SettingsPageState extends State<SettingsPage> {
               children: [
                 _MenuRow(
                   icon: Icons.lock_outline,
-                  label: 'Password & Security',
+                  label: !_isManager && _organizationPlan
+                      ? 'Password & security'
+                      : 'Password & Security',
                   onTap: () =>
                       Navigator.of(context)
                           .pushNamed(AppRoutes.passwordSecurity),
                 ),
-                _MenuRow(
-                  icon: Icons.credit_card_outlined,
-                  label: 'Billing Information',
-                  onTap: () =>
-                      Navigator.of(context)
-                          .pushNamed(AppRoutes.billingInformation),
-                ),
+                if (!_isManager) ...[
+                  _MenuRow(
+                    icon: Icons.credit_card_outlined,
+                    label: 'Billing Information',
+                    onTap: () =>
+                        Navigator.of(context)
+                            .pushNamed(AppRoutes.billingInformation),
+                  ),
+                  _MenuRow(
+                    icon: Icons.receipt_long_outlined,
+                    label: 'Subscription & Usage',
+                    onTap: () => Navigator.of(context).pushNamed(
+                      AppRoutes.subscriptionUsage,
+                      arguments: _organizationPlan
+                          ? SubscriptionPlanIds.organization
+                          : SubscriptionPlanIds.basic,
+                    ),
+                  ),
+                ],
+                if (!_isManager && _organizationPlan)
+                  _MenuRow(
+                    icon: Icons.group_outlined,
+                    label: 'Manager Management',
+                    onTap: () =>
+                        Navigator.of(context)
+                            .pushNamed(AppRoutes.managerManagement),
+                  ),
                 _MenuRow(
                   icon: Icons.tune,
                   label: 'Preferences',
@@ -214,7 +239,7 @@ class _SettingsPageState extends State<SettingsPage> {
               children: [
                 _MenuRow(
                   icon: Icons.help_outline,
-                  label: 'FAQs',
+                  label: 'FAQS',
                   onTap: () => Navigator.of(context).pushNamed(AppRoutes.faqs),
                 ),
                 _MenuRow(
