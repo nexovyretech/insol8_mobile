@@ -1,100 +1,56 @@
 import 'package:flutter/material.dart';
 
-import 'package:insol8_mobile/theme/app_colors.dart';
-
+/// The screenshot's single quick-action card: "Add a Job" / "New drying job".
 class DashboardQuickActions extends StatelessWidget {
-  const DashboardQuickActions({
-    super.key,
-    required this.onAddDevice,
-    required this.onReportIssue,
-  });
+  const DashboardQuickActions({super.key, required this.onAddJob});
 
-  final VoidCallback onAddDevice;
-  final VoidCallback onReportIssue;
+  final VoidCallback onAddJob;
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: AppColors.dashboardCard,
+    return Material(
+      color: const Color(0xFFD97247),
+      borderRadius: BorderRadius.circular(18),
+      child: InkWell(
+        onTap: onAddJob,
         borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: AppColors.dashboardBorder),
-      ),
-      child: Row(
-        children: [
-          Expanded(
-            child: _QuickActionButton(
-              label: 'Add Device',
-              icon: Icons.add,
-              onPressed: onAddDevice,
-            ),
-          ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: _QuickActionButton(
-              label: 'Report an Issue',
-              icon: Icons.flag_outlined,
-              onPressed: onReportIssue,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _QuickActionButton extends StatelessWidget {
-  const _QuickActionButton({
-    required this.label,
-    required this.icon,
-    required this.onPressed,
-  });
-
-  final String label;
-  final IconData icon;
-  final VoidCallback onPressed;
-
-  @override
-  Widget build(BuildContext context) {
-    return SizedBox(
-      height: 54,
-      child: FilledButton(
-        onPressed: onPressed,
-        style: FilledButton.styleFrom(
-          padding: const EdgeInsets.symmetric(horizontal: 10),
-          backgroundColor: AppColors.primary,
-          foregroundColor: Colors.white,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
-          ),
-        ),
-        child: Row(
-          children: [
-            Expanded(
-              child: Text(
-                label,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-                style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                  color: Colors.white,
-                  fontSize: 13,
-                  fontWeight: FontWeight.w600,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
+          child: Row(
+            children: [
+              const Icon(Icons.sunny, color: Color(0xFFFEF7F2), size: 30),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'New drying job',
+                      style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                        color: const Color(0xFFFEF7F2),
+                        fontSize: 13,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    const SizedBox(height: 3),
+                    Text(
+                      'Create a new drying session',
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: const Color(0xFFF4D7C8),
+                        fontSize: 11,
+                        height: 1.25,
+                      ),
+                    ),
+                  ],
                 ),
               ),
-            ),
-            const SizedBox(width: 4),
-            Container(
-              width: 38,
-              height: 38,
-              decoration: BoxDecoration(
-                color: AppColors.surface,
-                borderRadius: BorderRadius.circular(9),
+              const Icon(
+                Icons.chevron_right,
+                color: Color(0xFFFEF7F2),
+                size: 20,
               ),
-              alignment: Alignment.center,
-              child: Icon(icon, size: 22, color: AppColors.primary),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );

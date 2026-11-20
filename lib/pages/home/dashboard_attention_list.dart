@@ -43,13 +43,8 @@ class DashboardAttentionList extends StatelessWidget {
       ),
       child: Column(
         children: [
-          for (var index = 0; index < items.length; index++) ...[
-            if (index > 0) const Divider(height: 1, indent: 56, endIndent: 14),
-            _AttentionRow(
-              item: items[index],
-              onTap: () => onTapItem?.call(items[index]),
-            ),
-          ],
+          for (final item in items)
+            _AttentionRow(item: item, onTap: () => onTapItem?.call(item)),
         ],
       ),
     );
@@ -71,40 +66,41 @@ class _AttentionRow extends StatelessWidget {
       onTap: onTap,
       borderRadius: BorderRadius.circular(18),
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
         child: Row(
           children: [
             Container(
-              width: 30,
-              height: 30,
+              width: 26,
+              height: 26,
               decoration: const BoxDecoration(
                 color: AppColors.dashboardCard,
                 shape: BoxShape.circle,
               ),
-              child: Icon(icon, color: AppColors.sectionLabel, size: 17),
+              child: Icon(icon, color: const Color(0xFFEEB490), size: 14),
             ),
-            const SizedBox(width: 10),
+            const SizedBox(width: 12),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    item.deviceName,
+                    item.deviceName.toUpperCase(),
                     style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      color: AppColors.ink,
-                      fontSize: 14,
-                      fontWeight: FontWeight.w600,
+                      color: const Color(0xFF1A1613),
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700,
                     ),
                   ),
                   Text(
                     item.message,
-                    style: Theme.of(context).textTheme.bodyMedium
-                        ?.copyWith(color: AppColors.fieldHint, fontSize: 13),
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      color: const Color(0xFF6C6866),
+                      fontSize: 12,
+                    ),
                   ),
                 ],
               ),
             ),
-            const Icon(Icons.chevron_right, color: AppColors.sectionLabel),
           ],
         ),
       ),
