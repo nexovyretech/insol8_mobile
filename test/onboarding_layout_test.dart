@@ -4,6 +4,7 @@ import 'package:insol8_mobile/models/branch_setup_data.dart';
 import 'package:insol8_mobile/models/subscription_plan.dart';
 import 'package:insol8_mobile/pages/onboarding/branch_setup_step.dart';
 import 'package:insol8_mobile/pages/onboarding/device_setup_steps.dart';
+import 'package:insol8_mobile/pages/onboarding/manager_account_step.dart';
 import 'package:insol8_mobile/pages/onboarding/payment_steps.dart';
 import 'package:insol8_mobile/pages/onboarding/subscription_steps.dart';
 import 'package:insol8_mobile/pages/onboarding/welcome_step.dart';
@@ -55,7 +56,7 @@ final Map<String, (Widget Function(), String)> _screens = {
       onBack: _noop,
       onContinue: _noop,
     ),
-    'Pay ₱ 249.99 via GCash',
+    'Pay ₱ 200.00 via GCash',
   ),
   'payment success': (
     () => const OnboardingPaymentSuccessStep(
@@ -107,16 +108,44 @@ final Map<String, (Widget Function(), String)> _screens = {
       formKey: GlobalKey<FormState>(),
       branchNameController: TextEditingController(),
       branchAddressController: TextEditingController(),
-      managerFirstNameController: TextEditingController(),
-      managerLastNameController: TextEditingController(),
       managerOption: BranchManagerOption.newManager,
       isSaving: false,
       onManagerOptionChanged: (_) {},
       onFieldChanged: _noop,
-      onSkip: _noop,
+      onAddManager: _noop,
       onFinish: _noop,
     ),
     'Finish Setup',
+  ),
+  'manager account (email)': (
+    () => OnboardingManagerAccountStep(
+      onBack: _noop,
+      formKey: GlobalKey<FormState>(),
+      firstNameController: TextEditingController(),
+      lastNameController: TextEditingController(),
+      emailController: TextEditingController(),
+      mobileController: TextEditingController(),
+      isEmail: true,
+      onContactMethodChanged: (_) {},
+      onFieldChanged: _noop,
+      onCreateAccount: _noop,
+    ),
+    'Create Account',
+  ),
+  'manager account (mobile)': (
+    () => OnboardingManagerAccountStep(
+      onBack: _noop,
+      formKey: GlobalKey<FormState>(),
+      firstNameController: TextEditingController(),
+      lastNameController: TextEditingController(),
+      emailController: TextEditingController(),
+      mobileController: TextEditingController(),
+      isEmail: false,
+      onContactMethodChanged: (_) {},
+      onFieldChanged: _noop,
+      onCreateAccount: _noop,
+    ),
+    'Create Account',
   ),
 };
 

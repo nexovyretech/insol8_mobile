@@ -7,10 +7,12 @@ import 'package:insol8_mobile/models/billing.dart';
 import 'package:insol8_mobile/models/branch_data.dart';
 import 'package:insol8_mobile/models/branch_setup_data.dart';
 import 'package:insol8_mobile/models/device_setup_data.dart';
+import 'package:insol8_mobile/models/manager_account_data.dart';
 import 'package:insol8_mobile/models/onboarding_status.dart';
 import 'package:insol8_mobile/models/subscription_plan.dart';
 import 'package:insol8_mobile/pages/onboarding/branch_setup_step.dart';
 import 'package:insol8_mobile/pages/onboarding/device_setup_steps.dart';
+import 'package:insol8_mobile/pages/onboarding/manager_account_step.dart';
 import 'package:insol8_mobile/pages/onboarding/payment_steps.dart';
 import 'package:insol8_mobile/pages/onboarding/subscription_steps.dart';
 import 'package:insol8_mobile/pages/onboarding/welcome_step.dart';
@@ -98,11 +100,16 @@ class _OnboardingPageState extends State<OnboardingPage>
   final _branchAddressController = TextEditingController();
   final _managerFirstNameController = TextEditingController();
   final _managerLastNameController = TextEditingController();
+  final _managerFormKey = GlobalKey<FormState>();
+  final _managerEmailController = TextEditingController();
+  final _managerMobileController = TextEditingController();
   final _deviceCodeController = TextEditingController();
   final _deviceNameController = TextEditingController();
   final List<DeviceSetupData> _configuredDevices = [];
   bool _isQrScanning = false;
   BranchManagerOption? _managerOption;
+  ManagerAccountData? _managerAccount;
+  bool _managerIsEmail = true;
   bool _isSavingBranch = false;
   String? _deviceError;
 
@@ -142,6 +149,8 @@ class _OnboardingPageState extends State<OnboardingPage>
     _branchAddressController.dispose();
     _managerFirstNameController.dispose();
     _managerLastNameController.dispose();
+    _managerEmailController.dispose();
+    _managerMobileController.dispose();
     _deviceCodeController.dispose();
     _deviceNameController.dispose();
     super.dispose();
@@ -477,6 +486,36 @@ class _OnboardingPageState extends State<OnboardingPage>
     setState(() => _page = 3);
   }
 
+  void _changeManagerOption(BranchManagerOption option) {
+    setState(() {
+      _managerOption = option;
+      if (option != BranchManagerOption.newManager) _managerAccount = null;
+    });
+  }
+
+  void _openManagerAccount() => setState(() => _page = 11);
+
+  void _createManagerAccount() {
+    if (!(_managerFormKey.currentState?.validate() ?? false)) return;
+    final account = ManagerAccountData(
+      firstName: _managerFirstNameController.text.trim(),
+      lastName: _managerLastNameController.text.trim(),
+      contactMethod: _managerIsEmail
+          ? ManagerContactMethod.email
+          : ManagerContactMethod.mobile,
+      contact:
+          (_managerIsEmail
+                  ? _managerEmailController.text
+                  : _managerMobileController.text)
+              .trim(),
+    );
+    setState(() {
+      _managerAccount = account;
+      _managerOption = BranchManagerOption.newManager;
+      _page = 6;
+    });
+  }
+
   Future<void> _saveBranch() async {
     if (!(_branchFormKey.currentState?.validate() ?? false) ||
         _managerOption == null) {
@@ -496,6 +535,8 @@ class _OnboardingPageState extends State<OnboardingPage>
           managerLastName: _managerOption == BranchManagerOption.newManager
               ? _managerLastNameController.text.trim()
               : null,
+          managerEmail: _managerAccount?.email,
+          managerMobileNumber: _managerAccount?.mobileNumber,
         ),
       );
       if (!mounted) return;
@@ -807,16 +848,30 @@ class _OnboardingPageState extends State<OnboardingPage>
               formKey: _branchFormKey,
               branchNameController: _branchNameController,
               branchAddressController: _branchAddressController,
-              managerFirstNameController: _managerFirstNameController,
-              managerLastNameController: _managerLastNameController,
               managerOption: _managerOption,
+              managerAccount: _managerAccount,
               isSaving: _isSavingBranch,
               canAssignManagers: _activePlan.canAssignManagers,
-              onManagerOptionChanged: (value) =>
-                  setState(() => _managerOption = value),
+              onManagerOptionChanged: _changeManagerOption,
               onFieldChanged: () => setState(() {}),
-              onSkip: _goHome,
+              onAddManager: _openManagerAccount,
               onFinish: _saveBranch,
+            ),
+            11 => OnboardingManagerAccountStep(
+              key: const ValueKey('manager-account'),
+              onBack: () => setState(() => _page = 6),
+              formKey: _managerFormKey,
+              firstNameController: _managerFirstNameController,
+              lastNameController: _managerLastNameController,
+              emailController: _managerEmailController,
+              mobileController: _managerMobileController,
+              isEmail: _managerIsEmail,
+              onContactMethodChanged: (isEmail) => setState(() {
+                _managerIsEmail = isEmail;
+                _managerFormKey.currentState?.reset();
+              }),
+              onFieldChanged: () => setState(() {}),
+              onCreateAccount: _createManagerAccount,
             ),
             7 => OnboardingConnectDeviceStep(
               key: const ValueKey('connect-device'),

@@ -189,15 +189,16 @@ class OnboardingStickyLayout extends StatelessWidget {
 }
 
 class OnboardingSectionLabel extends StatelessWidget {
-  const OnboardingSectionLabel(this.label, {super.key});
+  const OnboardingSectionLabel(this.label, {super.key, this.color});
 
   final String label;
+  final Color? color;
 
   @override
   Widget build(BuildContext context) => Text(
     label,
     style: Theme.of(context).textTheme.bodySmall?.copyWith(
-      color: AppColors.fieldHint,
+      color: color ?? AppColors.fieldHint,
       fontSize: 12,
       fontWeight: FontWeight.w700,
     ),
@@ -214,6 +215,7 @@ class OnboardingGradientButton extends StatelessWidget {
     this.borderRadius = 14,
     this.fontSize = 14,
     this.gradientColors = const [AppColors.primary, AppColors.primaryDark],
+    this.disabledColor,
   });
 
   final String label;
@@ -224,6 +226,9 @@ class OnboardingGradientButton extends StatelessWidget {
   final double fontSize;
   final List<Color> gradientColors;
 
+  /// Lets a themed screen match its own disabled-button fill exactly.
+  final Color? disabledColor;
+
   @override
   Widget build(BuildContext context) {
     final isEnabled = onPressed != null;
@@ -231,7 +236,7 @@ class OnboardingGradientButton extends StatelessWidget {
       height: height,
       child: DecoratedBox(
         decoration: BoxDecoration(
-          color: isEnabled ? null : AppColors.disabled,
+          color: isEnabled ? null : disabledColor ?? AppColors.disabled,
           gradient: isEnabled ? LinearGradient(colors: gradientColors) : null,
           borderRadius: BorderRadius.circular(borderRadius),
         ),

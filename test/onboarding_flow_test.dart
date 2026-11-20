@@ -4,6 +4,7 @@ import 'package:insol8_mobile/models/branch_setup_data.dart';
 import 'package:insol8_mobile/models/device_setup_data.dart';
 import 'package:insol8_mobile/models/onboarding_status.dart';
 import 'package:insol8_mobile/models/subscription_plan.dart';
+import 'package:insol8_mobile/pages/onboarding/branch_setup_style.dart';
 import 'package:insol8_mobile/pages/onboarding/onboarding_page.dart';
 import 'package:insol8_mobile/services/api_client.dart';
 import 'package:insol8_mobile/services/onboarding_repository.dart';
@@ -137,7 +138,7 @@ Future<void> _toPaymentWaiting(WidgetTester tester) async {
   await _tap(tester, 'Continue');
   await _tap(tester, 'Get Started');
   await _tap(tester, 'Get Subscription');
-  await _tap(tester, 'Pay ₱ 249.99 via GCash', toSpinner: true);
+  await _tap(tester, 'Pay ₱ 200.00 via GCash', toSpinner: true);
 }
 
 void main() {
@@ -162,7 +163,7 @@ void main() {
     repo.markPaid('INSOL8-ref-1');
     await _advance(tester, 2);
     await tester.pumpAndSettle();
-    expect(find.text('Your payment has been successful!'), findsOneWidget);
+    expect(find.text('Your payment has been\nsuccessful!'), findsOneWidget);
     expect(find.text('INSOL8-ref-1'), findsOneWidget);
     expect(find.text('November 28, 2026'), findsOneWidget);
   });
@@ -181,7 +182,7 @@ void main() {
       tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
       await _advance(tester);
       await tester.pumpAndSettle();
-      expect(find.text('Your payment has been successful!'), findsOneWidget);
+      expect(find.text('Your payment has been\nsuccessful!'), findsOneWidget);
       expect(find.text('INSOL8-ref-1'), findsOneWidget);
     },
   );
@@ -196,7 +197,7 @@ void main() {
     final checks = repo.statusChecks;
     await _advance(tester, 5);
     expect(repo.statusChecks, checks);
-    expect(find.text('Pay ₱ 249.99 via GCash'), findsOneWidget);
+    expect(find.text('Pay ₱ 200.00 via GCash'), findsOneWidget);
   });
 
   testWidgets('Basic users connect a device without setting up a branch', (
@@ -222,6 +223,67 @@ void main() {
     expect(repo.device?.deviceName, 'Front dryer');
     expect(repo.branch, isNull);
     expect(find.text('HOME'), findsOneWidget);
+  });
+
+  testWidgets('add a new manager creates an account and sends its contact '
+      'with the branch', (tester) async {
+    final repo = _FakeRepository()
+      ..status = const OnboardingStatus(
+        subscriptionStatus: 'active',
+        activePlanId: 'organization',
+      );
+    // Already paid on Organization: onboarding resumes at branch setup.
+    await _pump(tester, repo);
+    expect(find.text('Name your first branch'), findsOneWidget);
+
+    Finder field(String hint) => find.byWidgetPredicate(
+      (widget) => widget is TextField && widget.decoration?.hintText == hint,
+    );
+
+    await tester.enterText(field('Branch name'), 'Caloocan Branch');
+    await tester.enterText(field('Store address'), 'Camarin, Caloocan City');
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Add a new manager').first);
+    await tester.pumpAndSettle();
+
+    // The Figma flow shows a second "Add a new manager" under Assign Manager,
+    // styled as a chevron action instead of one of the radio choices above.
+    expect(find.text('Add a new manager'), findsNWidgets(2));
+    final addManagerButton = find.byIcon(Icons.chevron_right);
+    expect(addManagerButton, findsOneWidget);
+    expect(
+      tester
+          .widget<Material>(
+            find
+                .ancestor(of: addManagerButton, matching: find.byType(Material))
+                .first,
+          )
+          .color,
+      BranchSetupPalette.field,
+    );
+    await tester.tap(find.text('Add a new manager').last);
+    await tester.pumpAndSettle();
+    expect(find.text('Create manager account'), findsOneWidget);
+
+    await tester.enterText(field('First name'), 'John');
+    await tester.enterText(field('Last name'), 'Doe');
+    await tester.enterText(field('Email address'), 'JohnDoe@gmail.com');
+    await tester.pumpAndSettle();
+    await _tap(tester, 'Create Account');
+
+    expect(find.text('John Doe'), findsOneWidget);
+    expect(find.text('JohnDoe@gmail.com'), findsOneWidget);
+    await _tap(tester, 'Finish Setup');
+
+    expect(repo.branch, isNotNull);
+    expect(repo.branch!.toJson(), {
+      'name': 'Caloocan Branch',
+      'storeAddress': 'Camarin, Caloocan City',
+      'managerOption': 'newManager',
+      'managerFirstName': 'John',
+      'managerLastName': 'Doe',
+    });
   });
 
   testWidgets('shows why a device code was rejected', (tester) async {
