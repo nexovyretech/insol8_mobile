@@ -12,6 +12,11 @@ class BranchData {
     required this.isOpen,
     this.deviceIds = const [],
     this.setup,
+    this.managerOption,
+    this.managerFirstName,
+    this.managerLastName,
+    this.managerEmail,
+    this.managerStatus,
   });
 
   factory BranchData.fromJson(Map<String, dynamic> json) => BranchData(
@@ -24,6 +29,11 @@ class BranchData {
     isOpen: json['isOpen'] as bool,
     deviceIds:
         (json['deviceIds'] as List<dynamic>?)?.cast<String>() ?? const [],
+    managerOption: json['managerOption'] as String?,
+    managerFirstName: json['managerFirstName'] as String?,
+    managerLastName: json['managerLastName'] as String?,
+    managerEmail: json['managerEmail'] as String?,
+    managerStatus: json['managerStatus'] as String?,
   );
 
   final String id;
@@ -38,4 +48,14 @@ class BranchData {
   /// What the user entered when adding the branch; `POST /branches` needs the
   /// manager option, which [managerName] alone cannot express.
   final BranchSetupData? setup;
+
+  /// Manager identity returned by `GET /branches`. The backend currently stores
+  /// only the name; the remaining fields are read when/if they are added.
+  final String? managerOption;
+  final String? managerFirstName;
+  final String? managerLastName;
+  final String? managerEmail;
+  final String? managerStatus;
+
+  bool get hasNamedManager => managerOption == 'newManager';
 }

@@ -34,6 +34,22 @@ class ApiBranchRepository implements BranchRepository {
     await _api.post('/branches', setup.toJson());
   }
 
+  @override
+  Future<void> updateBranchManager({
+    required String branchId,
+    required String? firstName,
+    required String? lastName,
+  }) async {
+    final named = firstName != null && lastName != null;
+    await _api.put('/branches/$branchId', {
+      'managerOption': named ? 'newManager' : 'myself',
+      if (named) ...{
+        'managerFirstName': firstName,
+        'managerLastName': lastName,
+      },
+    });
+  }
+
   // A branch is shown as open while any of its dryers is online.
   BranchData _branch(
     Map<String, dynamic> json,
@@ -51,5 +67,10 @@ class ApiBranchRepository implements BranchRepository {
         .length,
     isOpen: devices.any((device) => device['online'] == true),
     deviceIds: [for (final device in devices) device['deviceId'] as String],
+    managerOption: json['managerOption'] as String?,
+    managerFirstName: json['managerFirstName'] as String?,
+    managerLastName: json['managerLastName'] as String?,
+    managerEmail: json['managerEmail'] as String?,
+    managerStatus: json['managerStatus'] as String?,
   );
 }
