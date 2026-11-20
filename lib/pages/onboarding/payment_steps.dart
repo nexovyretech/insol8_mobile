@@ -34,8 +34,14 @@ class OnboardingPaymentStep extends StatelessWidget {
   /// Explains [amountCentavos] (for example, how an upgrade is priced).
   final String? note;
 
-  double get _amount =>
-      amountCentavos == null ? plan.price : amountCentavos! / 100;
+  /// Price shown in the subscription summary card.
+  double get _summaryAmount =>
+      amountCentavos == null ? plan.advertisedPrice : amountCentavos! / 100;
+
+  /// Amount shown on the payment button.
+  double get _checkoutAmount => amountCentavos == null
+      ? plan.advertisedCheckoutAmount
+      : amountCentavos! / 100;
 
   /// When the following payment falls due if this one goes through.
   final DateTime nextBillingDate;
@@ -66,7 +72,7 @@ class OnboardingPaymentStep extends StatelessWidget {
           ),
           const SizedBox(height: 8),
           Text(
-            "You're one step away from unlocking your inSOL8 subscription access.",
+            "You're one step away from unlocking your INSOL subscription access.",
             textAlign: TextAlign.center,
             style: Theme.of(context).textTheme.bodySmall
                 ?.copyWith(fontSize: 13),
@@ -77,7 +83,7 @@ class OnboardingPaymentStep extends StatelessWidget {
           _SubscriptionSummary(
             plan: plan,
             nextBillingDate: nextBillingDate,
-            amount: _amount,
+            amount: _summaryAmount,
             note: note,
             priceCaption: note != null && !renewal ? 'prorated' : '/ month',
           ),
@@ -109,7 +115,7 @@ class OnboardingPaymentStep extends StatelessWidget {
         actions: [
           OnboardingGradientButton(
             label:
-                'Pay ₱ ${_amount.toStringAsFixed(2)} via ${paymentMethod.label}',
+                'Pay ₱ ${_checkoutAmount.toStringAsFixed(2)} via ${paymentMethod.label}',
             onPressed: onContinue,
           ),
           const SizedBox(height: 14),
@@ -173,7 +179,7 @@ class _SubscriptionSummary extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      plan.name,
+                      plan.displayTitle,
                       style: const TextStyle(
                         color: AppColors.primary,
                         fontSize: 14,
@@ -232,7 +238,7 @@ class _SubscriptionSummary extends StatelessWidget {
                 ?.copyWith(fontSize: 12),
           ),
           const SizedBox(height: 5),
-          for (final feature in plan.features)
+          for (final feature in plan.summaryFeatures)
             Padding(
               padding: const EdgeInsets.only(bottom: 6),
               child: Row(
@@ -430,7 +436,7 @@ class OnboardingPaymentSuccessStep extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.center,
         content: [
           Text(
-            'Your payment has been successful!',
+            'Your payment has been\nsuccessful!',
             textAlign: TextAlign.center,
             style: Theme.of(context).textTheme.titleLarge
                 ?.copyWith(fontSize: 22),
@@ -451,7 +457,7 @@ class OnboardingPaymentSuccessStep extends StatelessWidget {
           ),
           const SizedBox(height: 22),
           Text(
-            'You paid ₱ ${(amountCentavos == null ? plan.price : amountCentavos! / 100).toStringAsFixed(2)} to',
+            'You paid ₱ ${(amountCentavos == null ? plan.advertisedPrice : amountCentavos! / 100).toStringAsFixed(2)} to',
             textAlign: TextAlign.center,
             style: Theme.of(context).textTheme.titleMedium?.copyWith(
               color: AppColors.primaryDark,
@@ -459,7 +465,7 @@ class OnboardingPaymentSuccessStep extends StatelessWidget {
             ),
           ),
           Text(
-            _subscriptionDisplayName(plan),
+            'InSOL8 Monthly ${plan.displayTierName} Tier',
             textAlign: TextAlign.center,
             style: Theme.of(context).textTheme.bodySmall,
           ),
@@ -537,7 +543,7 @@ class _TransactionCard extends StatelessWidget {
           ),
           const Divider(height: 18, color: Color(0xFFFFD7C2)),
           const SizedBox(height: 10),
-          _SummaryRow(label: 'Reference:', value: reference ?? '—'),
+          _SummaryRow(label: 'Transaction ID:', value: reference ?? '—'),
           const SizedBox(height: 8),
           _SummaryRow(
             label: 'Next Billing Date:',
@@ -547,7 +553,7 @@ class _TransactionCard extends StatelessWidget {
           ),
           const Divider(height: 18, color: Color(0xFFFFD7C2)),
           Text(
-            'Your plan is now active. Renew before the billing date to keep your features.',
+            'Your plan is now active. Official receipt sent to your email',
             style: Theme.of(context).textTheme.bodySmall
                 ?.copyWith(color: AppColors.body, fontSize: 12),
           ),
@@ -589,9 +595,6 @@ class _SummaryRow extends StatelessWidget {
     );
   }
 }
-
-String _subscriptionDisplayName(SubscriptionPlan plan) =>
-    'InSOL8 Monthly ${plan.name}';
 
 const _months = [
   'January',

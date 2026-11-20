@@ -15,6 +15,8 @@ class BranchSetupData {
     required this.managerOption,
     this.managerFirstName,
     this.managerLastName,
+    this.managerEmail,
+    this.managerMobileNumber,
   });
 
   final String name;
@@ -22,6 +24,12 @@ class BranchSetupData {
   final BranchManagerOption managerOption;
   final String? managerFirstName;
   final String? managerLastName;
+
+  /// Contact from the new manager account step. Kept for the UI and local
+  /// payload tests, but intentionally not sent to `POST /branches`: the backend
+  /// whitelist only accepts branch name, address and manager names.
+  final String? managerEmail;
+  final String? managerMobileNumber;
 
   Map<String, dynamic> toJson() => {
     'name': name,
