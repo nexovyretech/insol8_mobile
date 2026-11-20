@@ -413,6 +413,64 @@ void main() {
         'managerOption': 'myself',
       });
     });
+
+    test(
+      'assigns and clears a branch manager with PUT /branches/{id}',
+      () async {
+        final (api, calls) = _api(
+          (_) => {'branchId': _branchId, 'managerOption': 'newManager'},
+        );
+        final repository = ApiBranchRepository(apiClient: api);
+        await repository.updateBranchManager(
+          branchId: _branchId,
+          firstName: 'Juan',
+          lastName: 'Dela Cruz',
+        );
+        await repository.updateBranchManager(
+          branchId: _branchId,
+          firstName: null,
+          lastName: null,
+        );
+
+        expect(calls.map((call) => call.method), ['PUT', 'PUT']);
+        expect(calls.map((call) => call.path), [
+          '/branches/$_branchId',
+          '/branches/$_branchId',
+        ]);
+        expect(calls.first.body, {
+          'managerOption': 'newManager',
+          'managerFirstName': 'Juan',
+          'managerLastName': 'Dela Cruz',
+        });
+        expect(calls.last.body, {'managerOption': 'myself'});
+      },
+    );
+
+    test('reads manager identity from GET /branches', () async {
+      final (api, _) = _api(
+        (call) => call.path == '/branches'
+            ? [
+                {
+                  'branchId': _branchId,
+                  'name': 'Camarin',
+                  'storeAddress': 'Camarin Rd.',
+                  'managerOption': 'newManager',
+                  'managerFirstName': 'Jane',
+                  'managerLastName': 'Doe',
+                  'managerEmail': 'janedoe@email.com',
+                  'managerStatus': 'active',
+                },
+              ]
+            : const [],
+      );
+      final branches = await ApiBranchRepository(apiClient: api)
+          .fetchBranches();
+      expect(branches.single.managerFirstName, 'Jane');
+      expect(branches.single.managerLastName, 'Doe');
+      expect(branches.single.managerEmail, 'janedoe@email.com');
+      expect(branches.single.managerStatus, 'active');
+      expect(branches.single.hasNamedManager, isTrue);
+    });
   });
 
   group('ApiSubscriptionRepository', () {
