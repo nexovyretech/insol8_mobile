@@ -118,8 +118,8 @@ class DashboardSectionTitle extends StatelessWidget {
     child: Text(
       title,
       style: Theme.of(context).textTheme.titleSmall?.copyWith(
-        color: AppColors.sectionLabel,
-        fontSize: 16,
+        color: const Color(0xFFEEB490),
+        fontSize: 14,
         fontWeight: FontWeight.w700,
       ),
     ),

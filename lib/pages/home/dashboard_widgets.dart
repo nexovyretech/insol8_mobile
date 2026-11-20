@@ -3,3 +3,4 @@ export 'dashboard_bottom_navigation.dart';
 export 'dashboard_header.dart';
 export 'dashboard_metric_grid.dart';
 export 'dashboard_quick_actions.dart';
+export 'dashboard_tier_sections.dart';

@@ -25,8 +25,11 @@ class DashboardHeader extends StatelessWidget {
             child: Text(
               'Hey, $firstName!',
               textAlign: TextAlign.center,
-              style: Theme.of(context).textTheme.titleLarge
-                  ?.copyWith(fontSize: 24, fontWeight: FontWeight.w700),
+              style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                color: const Color(0xFF161310),
+                fontSize: 24,
+                fontWeight: FontWeight.w700,
+              ),
             ),
           ),
           Material(
