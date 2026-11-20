@@ -1,11 +1,14 @@
 import 'package:flutter/material.dart';
 
 import 'package:insol8_mobile/models/device_data.dart';
+import 'package:insol8_mobile/models/manager_auth_args.dart';
+import 'package:insol8_mobile/models/manager_data.dart';
 import 'package:insol8_mobile/pages/analytics/analytics_page.dart';
 import 'package:insol8_mobile/pages/branches/branches_page.dart';
 import 'package:insol8_mobile/pages/auth/forgot_password/forgot_password_page.dart';
 import 'package:insol8_mobile/pages/auth/get_started_page.dart';
 import 'package:insol8_mobile/pages/auth/login_page.dart';
+import 'package:insol8_mobile/pages/auth/manager_auth_page.dart';
 import 'package:insol8_mobile/pages/auth/signup/sign_up_screen.dart';
 import 'package:insol8_mobile/pages/devices/device_detail_page.dart';
 import 'package:insol8_mobile/pages/devices/device_search_page.dart';
@@ -13,8 +16,13 @@ import 'package:insol8_mobile/pages/devices/devices_page.dart';
 import 'package:insol8_mobile/pages/home/home_page.dart';
 import 'package:insol8_mobile/pages/settings/settings_page.dart';
 import 'package:insol8_mobile/pages/settings/account_profile_page.dart';
+import 'package:insol8_mobile/pages/settings/billing/add_on_pages.dart';
 import 'package:insol8_mobile/pages/settings/billing/payment_history_page.dart';
 import 'package:insol8_mobile/pages/settings/billing/subscription_locked_page.dart';
+import 'package:insol8_mobile/pages/settings/billing/subscription_usage_page.dart';
+import 'package:insol8_mobile/pages/settings/managers/add_manager_page.dart';
+import 'package:insol8_mobile/pages/settings/managers/manager_access_page.dart';
+import 'package:insol8_mobile/pages/settings/managers/manager_management_page.dart';
 import 'package:insol8_mobile/pages/settings/password_security_page.dart';
 import 'package:insol8_mobile/pages/settings/settings_content_page.dart';
 import 'package:insol8_mobile/pages/onboarding/onboarding_page.dart';
@@ -48,6 +56,9 @@ abstract final class AppRouteRegistry {
     AppRoutes.getStarted: (_) => const GetStartedPage(),
     AppRoutes.login: (_) => LoginPage(authRepository: authRepository),
     AppRoutes.signUp: (_) => SignUpScreen(authRepository: authRepository),
+    AppRoutes.managerAuth: (context) => ManagerAuthPage(
+      args: ManagerAuthArgs.from(ModalRoute.of(context)?.settings.arguments),
+    ),
     AppRoutes.forgotPassword: (_) =>
         ForgotPasswordPage(authRepository: authRepository),
     AppRoutes.onboarding: (_) =>
@@ -90,6 +101,14 @@ abstract final class AppRouteRegistry {
       deviceRepository: deviceRepository,
       subscriptionRepository: subscriptionRepository,
     ),
+    AppRoutes.managerManagement: (_) =>
+        ManagerManagementPage(branchRepository: branchRepository),
+    AppRoutes.managerAccess: (context) => ManagerAccessPage(
+      manager: ModalRoute.of(context)?.settings.arguments as ManagerData?,
+      branchRepository: branchRepository,
+    ),
+    AppRoutes.addManager: (_) =>
+        AddManagerPage(branchRepository: branchRepository),
     AppRoutes.passwordSecurity: (_) => PasswordSecurityPage(
       authRepository: authRepository,
       subscriptionRepository: subscriptionRepository,
@@ -99,6 +118,50 @@ abstract final class AppRouteRegistry {
       authRepository: authRepository,
       subscriptionRepository: subscriptionRepository,
     ),
+    AppRoutes.subscriptionUsage: (context) => SubscriptionUsagePage(
+      planId: ModalRoute.of(context)?.settings.arguments as String?,
+      subscriptionRepository: subscriptionRepository,
+    ),
+    AppRoutes.additionalBranch: (context) {
+      final args = AddOnFlowArgs.from(
+        ModalRoute.of(context)?.settings.arguments,
+      );
+      return AddOnPurchasePage(
+        kind: args.kind,
+        planId: args.planId,
+        branchRepository: branchRepository,
+      );
+    },
+    AppRoutes.additionalDevice: (context) {
+      final args = AddOnFlowArgs.from(
+        ModalRoute.of(context)?.settings.arguments,
+      );
+      return AddOnPurchasePage(
+        kind: args.kind,
+        planId: args.planId,
+        branchRepository: branchRepository,
+      );
+    },
+    AppRoutes.additionalBranchSuccess: (context) {
+      final args = AddOnFlowArgs.from(
+        ModalRoute.of(context)?.settings.arguments,
+      );
+      return AddOnSuccessPage(
+        kind: args.kind,
+        planId: args.planId,
+        branchName: args.branchName,
+      );
+    },
+    AppRoutes.additionalDeviceSuccess: (context) {
+      final args = AddOnFlowArgs.from(
+        ModalRoute.of(context)?.settings.arguments,
+      );
+      return AddOnSuccessPage(
+        kind: args.kind,
+        planId: args.planId,
+        branchName: args.branchName,
+      );
+    },
     AppRoutes.subscriptionLocked: (_) => SubscriptionLockedPage(
       authRepository: authRepository,
       subscriptionRepository: subscriptionRepository,
