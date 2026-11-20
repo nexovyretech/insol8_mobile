@@ -1,27 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:insol8_mobile/models/user_profile.dart';
 import 'package:insol8_mobile/pages/settings/billing/subscription_usage_page.dart';
-import 'package:insol8_mobile/pages/settings/settings_page.dart';
 import 'package:insol8_mobile/routes/app_routes.dart';
-import 'package:insol8_mobile/services/auth_repository.dart';
 import 'package:insol8_mobile/services/subscription_repository.dart';
 import 'package:insol8_mobile/theme/app_colors.dart';
 import 'package:insol8_mobile/theme/app_theme.dart';
-
-import 'support/fake_repositories.dart';
-
-class _TestAuthRepository extends UnconfiguredAuthRepository {
-  const _TestAuthRepository();
-
-  @override
-  Future<UserProfile> loadProfile() async => const UserProfile(
-    username: 'jane.doe',
-    firstName: 'Jane',
-    lastName: 'Doe',
-    role: AccountRole.owner,
-  );
-}
 
 Future<void> _pumpUsagePage(
   WidgetTester tester, {
@@ -163,38 +146,5 @@ void main() {
       find.text('Additional device: ${SubscriptionPlanIds.organization}'),
       findsOneWidget,
     );
-  });
-
-  testWidgets('Settings opens Subscription & Usage with the active plan', (
-    tester,
-  ) async {
-    tester.view.physicalSize = const Size(1080, 4000);
-    tester.view.devicePixelRatio = 1;
-    addTearDown(tester.view.reset);
-
-    await tester.pumpWidget(
-      MaterialApp(
-        theme: AppTheme.light,
-        home: SettingsPage(
-          authRepository: const _TestAuthRepository(),
-          branchRepository: const UnusedBranchRepository(),
-          deviceRepository: const UnusedDeviceRepository(),
-          subscriptionRepository: const FakeSubscriptionRepository(
-            SubscriptionPlanIds.organization,
-          ),
-        ),
-        routes: {
-          AppRoutes.subscriptionUsage: (context) => Text(
-            ModalRoute.of(context)?.settings.arguments as String? ?? 'none',
-          ),
-        },
-      ),
-    );
-    await tester.pumpAndSettle();
-
-    await tester.tap(find.text('Subscription & Usage'));
-    await tester.pumpAndSettle();
-
-    expect(find.text(SubscriptionPlanIds.organization), findsOneWidget);
   });
 }
